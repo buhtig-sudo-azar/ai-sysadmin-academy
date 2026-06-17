@@ -22,7 +22,7 @@ import {
   Brain, Zap, Clock, TrendingUp, Award, RefreshCw, Sparkles, Send, CheckCircle2,
   XCircle, HelpCircle, ArrowRight, ArrowLeft, Eye, Lightbulb,
   Trophy, LayoutDashboard, FolderOpen, Mic, Cpu, User, X, MessageSquare,
-  Minimize2, Maximize2, Shrink, ArrowUp
+  Minimize2, Maximize2, Shrink, ArrowUp, HardDrive, Server, Lock, Wrench
 } from 'lucide-react'
 
 interface Category { id: string; name: string; slug: string; description: string; icon: string; order: number; _count?: { questions: number } }
@@ -36,6 +36,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   Container: <Box className="h-5 w-5" />, Blocks: <Blocks className="h-5 w-5" />, Layers: <Layers className="h-5 w-5" />, Play: <Play className="h-5 w-5" />,
   Cloud: <Cloud className="h-5 w-5" />, CloudRain: <CloudRain className="h-5 w-5" />, CloudSun: <CloudSun className="h-5 w-5" />, GitBranch: <GitBranch className="h-5 w-5" />,
   Activity: <Activity className="h-5 w-5" />, Database: <Database className="h-5 w-5" />, Globe: <Globe className="h-5 w-5" />,
+  Settings: <Wrench className="h-5 w-5" />, HardDrive: <HardDrive className="h-5 w-5" />, Server: <Server className="h-5 w-5" />,
+  Zap: <Zap className="h-5 w-5" />, Lock: <Lock className="h-5 w-5" />,
 }
 
 const NAV_ITEMS: { view: AppView; label: string; icon: React.ReactNode }[] = [

@@ -93,6 +93,11 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'Activity': '📊',
   'Database': '🗄️',
   'Globe': '🌍',
+  'Settings': '⚙️',
+  'HardDrive': '💾',
+  'Server': '🖥️',
+  'Zap': '⚡',
+  'Lock': '🔐',
 }
 
 // Цвета уровней сложности
