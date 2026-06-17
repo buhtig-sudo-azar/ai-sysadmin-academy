@@ -78,7 +78,7 @@ db/
 Caddyfile
 
 # Scripts (build helpers)
-/scripts/
+/scripts/gen-favicon.ts
 
 # Bun lock (optional)
 bun.lock
