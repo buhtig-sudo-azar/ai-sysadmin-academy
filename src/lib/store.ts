@@ -44,17 +44,17 @@ export const useAppStore = create<AppState>((set) => ({
   }),
 }))
 
-// Level system
+// Система уровней
 export const LEVELS = [
-  { name: 'Beginner', minXP: 0, icon: '🌱' },
-  { name: 'Junior', minXP: 500, icon: '🌿' },
-  { name: 'Junior+', minXP: 1200, icon: '🌳' },
-  { name: 'Middle', minXP: 2000, icon: '⚙️' },
-  { name: 'Middle+', minXP: 3500, icon: '🔧' },
-  { name: 'Senior', minXP: 5000, icon: '🏗️' },
-  { name: 'Lead', minXP: 7500, icon: '🚀' },
-  { name: 'Principal', minXP: 10000, icon: '⭐' },
-  { name: 'Architect', minXP: 15000, icon: '👑' },
+  { name: 'Новичок', minXP: 0, icon: '🌱' },
+  { name: 'Младший', minXP: 500, icon: '🌿' },
+  { name: 'Младший+', minXP: 1200, icon: '🌳' },
+  { name: 'Средний', minXP: 2000, icon: '⚙️' },
+  { name: 'Средний+', minXP: 3500, icon: '🔧' },
+  { name: 'Старший', minXP: 5000, icon: '🏗️' },
+  { name: 'Ведущий', minXP: 7500, icon: '🚀' },
+  { name: 'Главный', minXP: 10000, icon: '⭐' },
+  { name: 'Архитектор', minXP: 15000, icon: '👑' },
 ]
 
 export function getLevelForXP(xp: number) {
@@ -76,7 +76,7 @@ export function getProgressToNextLevel(xp: number) {
   return Math.round(((xp - current.minXP) / (next.minXP - current.minXP)) * 100)
 }
 
-// Category icons mapping
+// Иконки категорий
 export const CATEGORY_ICONS: Record<string, string> = {
   'Terminal': '💻',
   'Network': '🌐',
@@ -93,6 +93,13 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'Activity': '📊',
   'Database': '🗄️',
   'Globe': '🌍',
+}
+
+// Цвета уровней сложности
+export const DIFFICULTY_LABELS: Record<string, string> = {
+  'beginner': 'Начальный',
+  'intermediate': 'Средний',
+  'advanced': 'Продвинутый',
 }
 
 export const DIFFICULTY_COLORS: Record<string, string> = {
