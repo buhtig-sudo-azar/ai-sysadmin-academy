@@ -1,0 +1,184 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  slug        String     @unique
+  description String?
+  icon        String?
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  questions   Question[]
+  tags        Tag[]
+}
+
+model Question {
+  id             String       @id @default(cuid())
+  title          String
+  slug           String       @unique
+  content        String       // The question text (markdown)
+  answer         String       // The answer text (markdown)
+  difficulty     String       @default("intermediate") // beginner, intermediate, advanced
+  source         String       @default("github") // github, ai_generated, manual
+  sourceUrl      String?
+  isPublished    Boolean      @default(true)
+  order          Int          @default(0)
+  views          Int          @default(0)
+  categoryId     String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  category       Category     @relation(fields: [categoryId], references: [id])
+  tags           QuestionTag[]
+  aiExplanation  AiExplanation?
+  progress       Progress[]
+  versions       ContentVersion[]
+  notes          UserNote[]
+
+  @@index([categoryId])
+  @@index([difficulty])
+  @@index([slug])
+}
+
+model Tag {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  slug        String        @unique
+  categoryId  String?
+  createdAt   DateTime      @default(now())
+
+  category    Category?     @relation(fields: [categoryId], references: [id])
+  questions   QuestionTag[]
+
+  @@index([slug])
+}
+
+model QuestionTag {
+  id          String   @id @default(cuid())
+  questionId  String
+  tagId       String
+
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag         Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, tagId])
+  @@index([questionId])
+  @@index([tagId])
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  avatar        String?
+  level         String     @default("Beginner") // Beginner, Junior, Junior+, Middle, Middle+, Senior, Lead, Principal, Architect
+  xp            Int        @default(0)
+  role          String     @default("user") // user, admin
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  progress      Progress[]
+  notes         UserNote[]
+}
+
+model Progress {
+  id            String     @id @default(cuid())
+  userId        String
+  questionId    String
+  status        String     @default("not_started") // not_started, learning, mastered, needs_review
+  score         Int?
+  attempts      Int        @default(0)
+  lastAttemptAt DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question      Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId])
+  @@index([questionId])
+  @@index([status])
+}
+
+model UserNote {
+  id          String   @id @default(cuid())
+  userId      String
+  questionId  String
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([questionId])
+}
+
+model AiExplanation {
+  id                  String   @id @default(cuid())
+  questionId          String   @unique
+  beginnerExplanation String?
+  intermediateExplanation String?
+  advancedExplanation String?
+  realWorldExample    String?
+  interviewTips       String?
+  relatedTopics       String?  // comma-separated
+  generatedAt         DateTime @default(now())
+  model               String?  // which AI model generated this
+
+  question            Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model UpdateLog {
+  id          String   @id @default(cuid())
+  type        String   // github_sync, knowledge_refresh, ai_generation
+  status      String   // started, completed, failed
+  details     String?
+  itemsCount  Int?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+model ContentVersion {
+  id          String   @id @default(cuid())
+  questionId  String
+  version     Int
+  title       String
+  content     String
+  answer      String
+  changeNote  String?
+  createdAt   DateTime @default(now())
+
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, version])
+  @@index([questionId])
+}
+
+model SyncState {
+  id              String   @id @default(cuid())
+  repoUrl         String
+  lastCommitSha   String?
+  lastSyncAt      DateTime?
+  status          String   @default("idle") // idle, syncing, completed, failed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
