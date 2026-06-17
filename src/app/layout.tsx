@@ -14,12 +14,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI SysAdmin Academy - Educational Platform for SysAdmins & DevOps",
-  description: "Modern AI-powered educational platform for system administrators, DevOps engineers, and infrastructure specialists. Learn Linux, Docker, Kubernetes, Cloud, and more.",
-  keywords: ["SysAdmin", "DevOps", "Linux", "Docker", "Kubernetes", "Cloud", "AI Learning", "Interview Prep"],
-  authors: [{ name: "AI SysAdmin Academy" }],
+  title: "ИИ Сисадмин Академия — Платформа обучения для системных администраторов и DevOps",
+  description: "Современная образовательная платформа с ИИ-наставником для системных администраторов, DevOps-инженеров и специалистов по инфраструктуре. Linux, Docker, Kubernetes, Cloud и многое другое. Актуально на июнь 2026.",
+  keywords: ["Сисадмин", "DevOps", "Linux", "Docker", "Kubernetes", "Облако", "ИИ Обучение", "Подготовка к собеседованию", "Bash", "Terraform", "Ansible", "Мониторинг", "Безопасность"],
+  authors: [{ name: "ИИ Сисадмин Академия" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "ИИ Сисадмин Академия",
+    description: "AI-powered образовательная платформа для сисадминов и DevOps",
+    images: ["/og-image.png"],
+    type: "website",
+    locale: "ru_RU",
   },
 };
 
@@ -29,7 +40,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

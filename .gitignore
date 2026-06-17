@@ -52,3 +52,33 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Upload directory (contains tokens/secrets)
+/upload/
+
+# Tool results
+/tool-results/
+
+# Worklog
+worklog.md
+
+# Download dir
+/download/
+
+# Examples
+/examples/
+
+# Mini services
+/mini-services/
+
+# Custom DB
+db/
+
+# Caddyfile
+Caddyfile
+
+# Scripts (build helpers)
+/scripts/
+
+# Bun lock (optional)
+bun.lock
