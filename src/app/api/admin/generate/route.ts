@@ -7,7 +7,6 @@ export async function POST(request: NextRequest) {
     const { action, categorySlug } = body
 
     if (action === 'generate-explanations') {
-      // Generate AI explanations for questions that don't have them
       const questionsWithoutExplanations = await db.question.findMany({
         where: { aiExplanation: null, ...(categorySlug ? { category: { slug: categorySlug } } : {}) },
         take: 10,
@@ -20,12 +19,12 @@ export async function POST(request: NextRequest) {
           update: {},
           create: {
             questionId: q.id,
-            beginnerExplanation: `This is a fundamental concept in ${q.category.name}. Think of it as a building block that helps you understand how systems work. The key idea is straightforward: focus on understanding the basic principles first, then build upon them with more complex scenarios.`,
-            intermediateExplanation: `${q.title} involves several key components working together in ${q.category.name}. Understanding their interactions is crucial for effective system administration. Focus on how changes in one component affect the overall system behavior.`,
-            advancedExplanation: `At an advanced level, ${q.title} requires deep understanding of internal mechanisms and performance implications in ${q.category.name}. Consider edge cases, failure scenarios, and optimization strategies. Architecture decisions here have long-term impact.`,
-            realWorldExample: `In a production environment, this concept directly impacts system reliability. For example, during a production incident, understanding ${q.title.toLowerCase()} helps you quickly identify root causes and implement effective fixes.`,
-            interviewTips: `When asked about this in an interview, start with a clear definition, provide a practical example from your experience, mention common pitfalls, and demonstrate your understanding of both theoretical concepts and practical applications.`,
-            relatedTopics: q.category.name.toLowerCase() + ', system-design, troubleshooting',
+            beginnerExplanation: `Это фундаментальная концепция в ${q.category?.name || 'системном администрировании'}. Представьте это как строительный блок — сначала разберитесь в базовых принципах, а затем постепенно углубляйте понимание. Ключевая идея: сосредоточьтесь на том, как компоненты работают вместе.`,
+            intermediateExplanation: `${q.title} включает несколько ключевых компонентов, работающих вместе в ${q.category?.name || 'данной области'}. Понимание их взаимодействий критически важно. Обратите внимание на то, как изменения в одном компоненте влияют на поведение всей системы.`,
+            advancedExplanation: `На продвинутом уровне ${q.title} требует глубокого понимания внутренних механизмов и влияния на производительность. Рассмотрите краевые случаи, сценарии отказов и стратегии оптимизации. Архитектурные решения имеют долгосрочные последствия.`,
+            realWorldExample: `В продакшн-среде эта концепция напрямую влияет на надёжность системы. При расследовании инцидента понимание данной темы помогает быстро определить корневую причину и реализовать эффективное исправление.`,
+            interviewTips: `На собеседовании начните с чёткого определения, затем приведите практический пример. Упомяните распространённые ошибки и как их избежать. Покажите, что вы разбираетесь как в теории, так и на практике. Подготовьте конкретные цифры и метрики.`,
+            relatedTopics: (q.category?.name || '') + ', системный дизайн, диагностика',
             model: 'ai-generated',
           },
         })
@@ -34,30 +33,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         generated: questionsWithoutExplanations.length,
-        message: `Generated explanations for ${questionsWithoutExplanations.length} questions`,
+        message: `Сгенерировано объяснений для ${questionsWithoutExplanations.length} вопросов`,
       })
     }
 
     if (action === 'generate-questions') {
-      // Log the generation attempt
       await db.updateLog.create({
         data: {
           type: 'ai_generation',
           status: 'completed',
-          details: `Generated questions for category: ${categorySlug || 'all'}`,
+          details: `Генерация вопросов для категории: ${categorySlug || 'все'}`,
           itemsCount: 0,
         },
       })
 
       return NextResponse.json({
         success: true,
-        message: 'Question generation queued (requires AI service integration)',
+        message: 'Генерация вопросов поставлена в очередь (требуется ИИ-сервис)',
       })
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+    return NextResponse.json({ error: 'Неизвестное действие' }, { status: 400 })
   } catch (error) {
-    console.error('Generation failed:', error)
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+    console.error('Ошибка генерации:', error)
+    return NextResponse.json({ error: 'Ошибка генерации' }, { status: 500 })
   }
 }

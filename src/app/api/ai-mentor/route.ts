@@ -5,7 +5,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { message, context, mode } = body
 
-    // Simulate AI mentor response based on mode
     let response = ''
 
     if (mode === 'interview') {
@@ -18,43 +17,45 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ response })
   } catch (error) {
-    console.error('AI Mentor error:', error)
-    return NextResponse.json({ error: 'AI Mentor error' }, { status: 500 })
+    console.error('Ошибка ИИ-наставника:', error)
+    return NextResponse.json({ error: 'Ошибка ИИ-наставника' }, { status: 500 })
   }
 }
 
 function generateMentorResponse(message: string, context?: string): string {
   const lowerMsg = message.toLowerCase()
 
-  if (lowerMsg.includes('linux') && lowerMsg.includes('boot')) {
-    return `Great question about the Linux boot process! Let me break it down:\n\n**The boot sequence:**\n1. **BIOS/UEFI POST** - Hardware check\n2. **GRUB2** - Boot loader loads kernel + initramfs\n3. **Kernel init** - Detects hardware, loads drivers\n4. **systemd (PID 1)** - First userspace process\n5. **Targets** - Reaches default.target\n\n**Key tip for interviews:** Mention that systemd replaced SysVinit and uses parallel service startup, which significantly speeds up boot time.\n\nWant me to go deeper into any specific stage?`
+  if (lowerMsg.includes('загрузк') && (lowerMsg.includes('linux') || lowerMsg.includes('линукс'))) {
+    return `Отличный вопрос о процессе загрузки Linux! Давайте разберём:\n\n**Последовательность загрузки:**\n1. **BIOS/UEFI POST** — проверка оборудования\n2. **GRUB2/systemd-boot** — загрузчик загружает ядро + initramfs\n3. **Инициализация ядра** — обнаружение оборудования, загрузка драйверов\n4. **systemd (PID 1)** — первый пользовательский процесс\n5. **Цели systemd** — достижение default.target\n\n**Совет для собеседования:** Упомяните, что systemd заменил SysVinit и использует параллельный запуск сервисов, что значительно ускоряет загрузку. В 2026 году также актуальны UKI (Unified Kernel Image) и systemd-boot.\n\nХотите узнать подробнее о каком-то конкретном этапе?`
   }
 
-  if (lowerMsg.includes('docker') && (lowerMsg.includes('network') || lowerMsg.includes('bridge'))) {
-    return `Docker networking is a crucial topic! Here is what you need to know:\n\n**Main network drivers:**\n- **bridge** (default) - Private network with port mapping\n- **host** - Shares host network stack (best performance)\n- **overlay** - Multi-host networking for Swarm\n- **macvlan** - Container gets real MAC on LAN\n\n**Pro tip:** Always create a custom bridge network for multi-container apps. This gives you automatic DNS resolution between containers, which the default bridge does NOT provide.\n\n\`\`\`bash\ndocker network create myapp-net\ndocker run --network myapp-net --name api myimage\ndocker run --network myapp-net --name db myimage\n# api can reach db via hostname \"db\"\n\`\`\`\n\nShall I explain overlay networking for production?`
+  if (lowerMsg.includes('docker') && (lowerMsg.includes('сет') || lowerMsg.includes('network'))) {
+    return `Сети Docker — важная тема! Вот что нужно знать:\n\n**Основные сетевые драйверы:**\n- **bridge** (по умолчанию) — частная сеть с пробросом портов\n- **host** — разделяет сетевой стек хоста (лучшая производительность)\n- **overlay** — мультихостовая сеть для Swarm\n- **macvlan** — контейнер получает реальный MAC в LAN\n\n**Совет:** Всегда создавайте пользовательскую bridge-сеть для мультиконтейнерных приложений. Это даёт автоматическое DNS-разрешение имён между контейнерами.\n\n\`\`\`bash\ndocker network create myapp-net\ndocker run --network myapp-net --name api myimage\ndocker run --network myapp-net --name db myimage\n# api обращается к db по имени хоста "db"\n\`\`\`\n\nРассказать об overlay-сетях для продакшена?`
   }
 
-  if (lowerMsg.includes('kubernetes') || lowerMsg.includes('k8s')) {
-    return `Kubernetes is a vast topic! Let me give you a structured overview:\n\n**Control Plane:**\n- API Server (entry point)\n- etcd (state store)\n- Scheduler (assigns pods to nodes)\n- Controller Manager (reconciliation loops)\n\n**Worker Nodes:**\n- kubelet (agent)\n- kube-proxy (network rules)\n- Container Runtime (containerd/CRI-O)\n\n**For interviews, focus on:**\n1. Pod lifecycle and health probes\n2. Service types and networking\n3. Deployment strategies\n4. RBAC and security contexts\n\nWhat specific K8s topic would you like to explore?`
+  if (lowerMsg.includes('kubernetes') || lowerMsg.includes('k8s') || lowerMsg.includes('кубер')) {
+    return `Kubernetes — обширная тема! Вот структурированный обзор:\n\n**Control Plane:**\n- API Server (входная точка)\n- etcd (хранилище состояния)\n- Scheduler (назначает поды узлам)\n- Controller Manager (циклы согласования)\n\n**Worker Nodes:**\n- kubelet (агент)\n- kube-proxy (сетевые правила)\n- Container Runtime (containerd/CRI-O)\n\n**Для собеседования сфокусируйтесь на:**\n1. Жизненном цикле подов и health probes\n2. Типах Service и сетях\n3. Стратегиях деплоя\n4. RBAC и security contexts\n\nВ 2026 году также актуальны: Gateway API (замена Ingress), Cilium как CNI по умолчанию, sidecar containers.\n\nКакую конкретно тему K8s хотите разобрать?`
   }
 
-  return `That is a great question about system administration! Let me help you understand this better.\n\n**Here is my approach:**\n1. Break down the problem into core concepts\n2. Understand the \"why\" behind the technology\n3. Practice with hands-on examples\n4. Review common interview questions on this topic\n\nCould you be more specific about which aspect you would like me to explain? For example:\n- Theoretical concepts\n- Practical commands and configuration\n- Troubleshooting scenarios\n- Interview preparation tips\n\nI am here to guide your learning journey!`
+  if (lowerMsg.includes('безопасност') || lowerMsg.includes('security') || lowerMsg.includes('харденинг')) {
+    return `Безопасность — критически важная тема для сисадмина! Вот ключевые направления:\n\n**Харденинг Linux:**\n- SSH: только ключи ed25519, запрет root-входа\n- Файрвол: nftables (замена iptables)\n- SELinux/AppArmor в enforcing-режиме\n- Автоматические обновления безопасности\n\n**Безопасность контейнеров:**\n- Запуск от непривилегированного пользователя\n- Read-only файловая система\n- Минимальные образы (distroless/scratch)\n- Сканирование уязвимостей (Trivy, Grype)\n\n**Облачная безопасность:**\n- Принцип наименьших привилегий в IAM\n- Шифрование данных в покое и в движении\n- Network policies для изоляции\n- Секреты через Vault или облачные сервисы\n\nВ 2026 актуально: SBOM (Software Bill of Materials), подписи артефактов (Sigstore), Supply Chain Security.\n\nКакой аспект безопасности вас интересует подробнее?`
+  }
+
+  return `Отличный вопрос о системном администрировании! Давайте разберёмся.\n\n**Мой подход:**\n1. Разобьём проблему на базовые концепции\n2. Поймём «почему» за технологией\n3. Рассмотрим практические примеры\n4. Изучим типичные вопросы на собеседовании\n\nУточните, какой аспект вы хотите разобрать подробнее:\n- Теоретические концепции\n- Практические команды и конфигурация\n- Сценарии устранения неполадок\n- Подготовка к собеседованию\n\nЯ помогу вам на пути обучения!`
 }
 
 function generateInterviewResponse(message: string, context?: string): string {
-  const lowerMsg = message.toLowerCase()
-
-  if (lowerMsg.length < 20) {
-    return `Your answer is quite brief. In an interview, you would want to elaborate more. Here are some tips:\n\n1. **Start with a definition** - Show you understand the concept\n2. **Give a practical example** - Demonstrate hands-on experience\n3. **Mention edge cases** - Show depth of knowledge\n4. **Connect to business impact** - Show you think beyond tech\n\nTry expanding your answer with more detail!`
+  if (message.length < 20) {
+    return `Ваш ответ слишком краткий. На собеседовании стоит elaborate подробнее. Советы:\n\n1. **Начните с определения** — покажите, что понимаете концепцию\n2. **Приведите практический пример** — продемонстрируйте опыт\n3. **Упомяните краевые случаи** — покажите глубину знаний\n4. **Свяжите с бизнес-эффектом** — покажите, что мыслите шире техники\n\nПопробуйте расширить ответ!`
   }
 
-  if (lowerMsg.length < 50) {
-    return `Your answer has the right direction but needs more depth. Here is how to improve:\n\n**Score: 5/10**\n\n**Strengths:** You identified the key concept\n**Improvements needed:**\n- Add specific examples or commands\n- Explain the \"why\" not just the \"what\"\n- Mention alternatives and trade-offs\n\nTry answering again with more detail!`
+  if (message.length < 50) {
+    return `Ответ в правильном направлении, но нужна большая глубина. Как улучшить:\n\n**Оценка: 5/10**\n\n**Сильные стороны:** Вы определили ключевую концепцию\n**Что улучшить:**\n- Добавьте конкретные примеры или команды\n- Объясните «почему», а не только «что»\n- Упомяните альтернативы и компромиссы\n\nПопробуйте ответить ещё раз с большей детализацией!`
   }
 
-  return `Good answer! You demonstrate solid understanding.\n\n**Score: 8/10**\n\n**Strengths:**\n- Clear explanation of the concept\n- Good use of examples\n- Shows practical experience\n\n**To make it perfect:**\n- Mention performance implications\n- Discuss failure scenarios\n- Add monitoring/debugging approach\n\nKeep up the great work! You are well-prepared for interviews.`
+  return `Хороший ответ! Вы демонстрируете уверенное понимание.\n\n**Оценка: 8/10**\n\n**Сильные стороны:**\n- Чёткое объяснение концепции\n- Хорошие примеры\n- Виден практический опыт\n\n**Чтобы сделать идеальным:**\n- Упомяните влияние на производительность\n- Обсудите сценарии отказов\n- Добавьте подход к мониторингу/отладке\n\nПродолжайте в том же духе! Вы хорошо подготовлены к собеседованиям.`
 }
 
 function generateExplanationResponse(message: string, context?: string): string {
-  return `Let me explain this in detail:\n\n**For Beginners:**\nThis is a fundamental concept in system administration. Think of it as the foundation that more complex systems are built upon.\n\n**For Intermediate Level:**\nThe key components work together to provide reliable service. Understanding their interactions is crucial for troubleshooting and optimization.\n\n**For Advanced Level:**\nAt this level, you should focus on the internal mechanisms, performance tuning, and architectural decisions. Consider the trade-offs involved in different approaches.\n\n**Real-World Application:**\nIn production environments, this knowledge directly impacts system reliability and your ability to respond to incidents quickly.\n\nWould you like me to dive deeper into any specific aspect?`
+  return `Подробное объяснение:\n\n**Для новичков:**\nЭто фундаментальная концепция в системном администрировании. Представьте это как основу, на которой строятся более сложные системы.\n\n**Для среднего уровня:**\nКлючевые компоненты работают вместе для обеспечения надёжного сервиса. Понимание их взаимодействий критически важно для диагностики и оптимизации.\n\n**Для продвинутых:**\nНа этом уровне стоит сосредоточиться на внутренних механизмах, оптимизации производительности и архитектурных решениях. Учитывайте компромиссы различных подходов.\n\n**Практическое применение:**\nВ продакшн-окружении эти знания напрямую влияют на надёжность системы и вашу способность быстро реагировать на инциденты.\n\nХотите углубиться в конкретный аспект?`
 }
