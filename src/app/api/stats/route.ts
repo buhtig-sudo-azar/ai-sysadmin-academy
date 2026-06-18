@@ -3,10 +3,11 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const [totalQuestions, totalCategories, totalTags, difficultyBreakdown] = await Promise.all([
+    const [totalQuestions, totalCategories, totalTags, totalExplanations, difficultyBreakdown] = await Promise.all([
       db.question.count({ where: { isPublished: true } }),
       db.category.count(),
       db.tag.count(),
+      db.aiExplanation.count(),
       db.question.groupBy({
         by: ['difficulty'],
         _count: { difficulty: true },
@@ -32,12 +33,16 @@ export async function GET() {
       totalQuestions,
       totalCategories,
       totalTags,
+      totalExplanations,
       totalUsers,
       totalProgress,
       difficultyBreakdown: difficultyBreakdown.map((d) => ({
         difficulty: d.difficulty,
         count: d._count.difficulty,
       })),
+      beginner: difficultyBreakdown.find(d => d.difficulty === 'beginner')?._count.difficulty ?? 0,
+      intermediate: difficultyBreakdown.find(d => d.difficulty === 'intermediate')?._count.difficulty ?? 0,
+      advanced: difficultyBreakdown.find(d => d.difficulty === 'advanced')?._count.difficulty ?? 0,
       categoryStats,
       recentQuestions,
     })

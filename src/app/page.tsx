@@ -609,13 +609,20 @@ function AdminView() {
   const [syncState, setSyncState] = useState<{ repoUrl: string; lastSyncAt: string | null; status: string } | null>(null)
   const [recentLogs, setRecentLogs] = useState<{ id: string; type: string; status: string; details: string; createdAt: string }[]>([])
   const [syncing, setSyncing] = useState(false); const [generating, setGenerating] = useState(false); const [genResult, setGenResult] = useState('')
-  useEffect(() => { fetch('/api/admin/sync').then(r => r.json()).then(d => { setSyncState(d.syncState); setRecentLogs(d.recentLogs || []) }) }, [])
+  const [adminStats, setAdminStats] = useState<{ totalQuestions: number; totalCategories: number; totalTags: number; totalExplanations: number; beginner: number; intermediate: number; advanced: number } | null>(null)
+  useEffect(() => {
+    fetch('/api/admin/sync').then(r => r.json()).then(d => { setSyncState(d.syncState); setRecentLogs(d.recentLogs || []) })
+    fetch('/api/stats').then(r => r.json()).then(d => { setAdminStats(d) })
+  }, [])
   const triggerSync = async () => { setSyncing(true); try { await fetch('/api/admin/sync', { method: 'POST' }); const d = await (await fetch('/api/admin/sync')).json(); setSyncState(d.syncState); setRecentLogs(d.recentLogs || []) } catch {} setSyncing(false) }
   const genExpl = async () => { setGenerating(true); setGenResult(''); try { const d = await (await fetch('/api/admin/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate-explanations' }) })).json(); setGenResult(d.message || 'Готово') } catch { setGenResult('Ошибка') } setGenerating(false) }
+  const s = adminStats
   return (
     <div className="max-w-5xl space-y-4 sm:space-y-6"><h2 className="text-lg sm:text-xl font-bold">Админ-панель</h2>
       <Tabs defaultValue="content"><TabsList className="flex-wrap"><TabsTrigger value="content" className="text-xs">Контент</TabsTrigger><TabsTrigger value="sync" className="text-xs">GitHub Sync</TabsTrigger><TabsTrigger value="ai" className="text-xs">ИИ</TabsTrigger><TabsTrigger value="logs" className="text-xs">Логи</TabsTrigger></TabsList>
-        <TabsContent value="content" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4"><div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">{[['36', 'Вопросов'], ['15', 'Категорий'], ['36', 'ИИ-объясн.'], ['1', 'Источник']].map(([v, l]) => (<div key={l} className="text-center p-2 sm:p-3 rounded-lg bg-muted"><div className="text-lg sm:text-2xl font-bold">{v}</div><div className="text-[10px] sm:text-xs text-muted-foreground">{l}</div></div>))}</div></CardContent></Card></TabsContent>
+        <TabsContent value="content" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4"><div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">{[[s?.totalQuestions ?? '—', 'Вопросов'], [s?.totalCategories ?? '—', 'Категорий'], [s?.totalExplanations ?? '—', 'ИИ-объясн.'], [s?.totalTags ?? '—', 'Тегов']].map(([v, l]) => (<div key={String(l)} className="text-center p-2 sm:p-3 rounded-lg bg-muted"><div className="text-lg sm:text-2xl font-bold">{v}</div><div className="text-[10px] sm:text-xs text-muted-foreground">{l}</div></div>))}</div>
+          {s && <div className="mt-3 grid grid-cols-3 gap-2 text-center">{[['Начальный', s.beginner], ['Средний', s.intermediate], ['Продвинутый', s.advanced]].map(([l, v]) => (<div key={String(l)} className="p-2 rounded-lg bg-muted/50"><div className="text-sm font-bold">{v}</div><div className="text-[10px] text-muted-foreground">{String(l)}</div></div>))}</div>}
+        </CardContent></Card></TabsContent>
         <TabsContent value="sync" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4 space-y-3">
           {syncState && <div className="grid grid-cols-2 gap-2 text-xs"><div className="text-muted-foreground">Репо:</div><div className="font-mono text-[10px] sm:text-xs truncate">{syncState.repoUrl}</div><div className="text-muted-foreground">Статус:</div><div><Badge variant="secondary">{syncState.status === 'idle' ? 'Ожидание' : syncState.status}</Badge></div></div>}
           <Button size="sm" onClick={triggerSync} disabled={syncing} className="gap-1 text-xs"><RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} /> {syncing ? 'Синхронизация...' : 'Запустить'}</Button>
