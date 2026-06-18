@@ -1,6 +1,15 @@
 import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+const databaseUrl = process.env.DATABASE_URL || ''
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl.includes('neon.tech')
+        ? databaseUrl + (databaseUrl.includes('connect_timeout') ? '' : '&connect_timeout=60&pool_timeout=60&connection_limit=5')
+        : databaseUrl
+    }
+  }
+})
 
 const categories = [
   { name: 'Основы Linux', slug: 'linux-fundamentals', description: 'Основы Linux/Unix: командная строка, базовые утилиты, структура системы, ядро, загрузка, процессы', icon: 'Terminal', order: 1 },
