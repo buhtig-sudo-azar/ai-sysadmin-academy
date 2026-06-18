@@ -90,12 +90,20 @@ export default function Home() {
   useEffect(() => {
     const el = mainRef.current
     if (!el) return
-    const handleScroll = () => { setShowScrollTop(el.scrollTop > 200) }
+    const handleScroll = () => { setShowScrollTop(el.scrollTop > 300) }
     el.addEventListener('scroll', handleScroll, { passive: true })
+    // Also re-check on view change
+    handleScroll()
     return () => el.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [currentView])
 
-  const scrollToTop = () => { mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const scrollToTop = () => {
+    const el = mainRef.current
+    if (el) {
+      el.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    setShowScrollTop(false)
+  }
 
   const renderContent = () => {
     switch (currentView) {
@@ -171,11 +179,13 @@ export default function Home() {
       </div>
 
       {/* Scroll to top */}
-      {showScrollTop && (
-        <button onClick={scrollToTop} className="fixed bottom-4 right-4 z-40 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all animate-in fade-in zoom-in-95 duration-200" aria-label="Наверх">
-          <ArrowUp className="h-4 w-4" />
-        </button>
-      )}
+      <button
+        onClick={scrollToTop}
+        className={`fixed bottom-20 right-4 z-50 h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 hover:scale-110 transition-all duration-300 ${showScrollTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}
+        aria-label="Наверх"
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
 
       {/* Agent Chat Popup */}
       <AgentChatPopup open={chatOpen} onClose={() => { setChatOpen(false); setChatMinimized(false); setChatExpanded(false) }}
