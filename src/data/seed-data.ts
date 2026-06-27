@@ -1,17 +1,25 @@
-import { PrismaClient } from '@prisma/client'
+// Переиспользуемые данные сида — импортируются и в scripts/seed.ts (CLI),
+// и в /api/admin/reseed/route.ts (API endpoint для перезапуска сида на production).
+// Это позволяет запускать сид удалённо через HTTPS, без прямого доступа к БД.
 
-const databaseUrl = process.env.DATABASE_URL || ''
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: databaseUrl.includes('neon.tech')
-        ? databaseUrl + (databaseUrl.includes('connect_timeout') ? '' : '&connect_timeout=60&pool_timeout=60&connection_limit=5')
-        : databaseUrl
-    }
-  }
-})
+export interface SeedCategory {
+  name: string
+  slug: string
+  description: string
+  icon: string
+  order: number
+}
 
-const categories = [
+export interface SeedQuestion {
+  c: string  // category slug
+  t: string  // title
+  q: string  // question text
+  a: string  // answer (Markdown)
+  d: string  // difficulty: beginner | intermediate | advanced
+  tags: string[]
+}
+
+export const seedCategories: SeedCategory[] = [
   { name: 'Основы Linux', slug: 'linux-fundamentals', description: 'Основы Linux/Unix: командная строка, базовые утилиты, структура системы, ядро, загрузка, процессы', icon: 'Terminal', order: 1 },
   { name: 'Системное администрирование', slug: 'sysadmin', description: 'Управление пользователями и процессами, дисками и файловыми системами, загрузчиками, сервисами, пакетами, мониторинг системы', icon: 'Settings', order: 2 },
   { name: 'Серверы Linux', slug: 'linux-servers', description: 'Настройка web, DNS, DHCP, баз данных, файловых серверов, почтовых серверов, SSH', icon: 'Server', order: 3 },
@@ -34,13 +42,7 @@ const categories = [
   { name: 'Облачная безопасность', slug: 'cloud-security', description: 'IAM, WAF, защита облака, комплаенс, аудит, постквантовая криптография', icon: 'Lock', order: 20 },
 ]
 
-type Q = { c: string; t: string; q: string; a: string; d: string; tags: string[] }
-
-const questions: Q[] = [
-// ================================================================
-// КНИГА 1: LINUX FUNDAMENTALS — основы Linux/Unix
-// Командная строка, базовые утилиты, структура системы
-// ================================================================
+export const seedQuestions: SeedQuestion[] = [
 {c:'linux-fundamentals',t:'Как устроена файловая иерархия Linux?',q:'Опишите назначение основных каталогов в корневой файловой системе Linux согласно FHS.',a:'## Основные элементы\n\n- Согласно Filesystem Hierarchy Standard (FHS), корневая файловая система Linux организована так: `/bin` — основные исполняемые файлы пользователя (ls, cp, mv, bash)\n- **/sbin** — системные исполняемые файлы (fdisk, mkfs, systemctl)\n- **/boot** — файлы загрузчика и ядра (vmlinuz, initramfs, GRUB)\n- **/dev** — файлы устройств (sda, tty, null, random)\n- **/etc** — конфигурационные файлы системы и приложений\n- **/home** — домашние каталоги пользователей\n- **/root** — домашний каталог суперпользователя\n- **/lib и /lib64** — разделяемые библиотеки и модули ядра\n- **/media и /mnt** — точки монтирования съёмных и временных файловых систем\n- **/opt** — дополнительные программные пакеты\n- **/proc** — виртуальная ФС с информацией о процессах и ядре\n- **/sys** — виртуальная ФС для взаимодействия с драйверами\n- **/tmp** — временные файлы, очищаемые при перезагрузке\n- **/usr** — пользовательские программы и библиотеки (вторичная иерархия)\n- **/var** — изменяемые данные: логи, почта, кэш, базы данных. В современных дистрибутивах `/bin` и `/sbin` часто являются символическими ссылками на `/usr/bin` и `/usr/sbin` (merge usr).',d:'beginner',tags:['fhs','файловая-система','структура']},
 {c:'linux-fundamentals',t:'Как работает процесс загрузки Linux?',q:'Опишите полную последовательность загрузки Linux от включения до инициализации пользовательского пространства.',a:'Процесс загрузки Linux в 2026 году:\n\n## Этапы\n\n1. BIOS/UEFI POST — проверка оборудования при включении\n2. Загрузчик GRUB2 или systemd-boot — находится в EFI-разделе, загружает ядро и initramfs в память\n3. Инициализация ядра — распаковка, обнаружение оборудования, загрузка драйверов из initramfs, монтирование корневой файловой системы\n4. PID 1 (systemd) — первый пользовательский процесс\n5. Цели systemd — последовательно активирует юниты: монтирует ФС, запускает сервисы, достигает default.target\n6. Getty/Login — TTY или дисплейный менеджер предлагает вход. Современные дополнения 2026: systemd-boot как альтернатива GRUB для UEFI-систем; UKI (Unified Kernel Image) — ядро, initramfs и командная строка объединены в один EFI-бинарник; Measured Boot через TPM для верификации цепочки загрузки.',d:'intermediate',tags:['загрузка','grub','systemd','ядро']},
 {c:'linux-fundamentals',t:'Чем отличается процесс от потока в Linux?',q:'Объясните фундаментальные различия между процессами и потоками в Linux, включая модель памяти, переключение контекста и механизмы коммуникации.',a:'Процесс — независимая единица выполнения с собственным адресным пространством. Поток — легковесный подпроцесс, разделяющий адресное пространство родителя, но имеющий собственный стек и регистры. Ключевые отличия: процессы обладают отдельными адресными пространствами, потоки разделяют одно. Переключение потоков быстрее, поскольку сохраняется меньше состояния. Потоки общаются через разделяемую память, процессы используют IPC — каналы, сокеты, сигналы. Создание потока обходится дешевле. Сбой потока может повредить весь процесс, тогда как сбой процесса не затрагивает остальные. В ядре Linux 6.x и процессы, и потоки планируются как задачи через CFS scheduler. Потоки реализованы через системный вызов clone() с флагами совместного доступа к памяти.',d:'beginner',tags:['процессы','потоки','ядро']},
@@ -59,12 +61,6 @@ const questions: Q[] = [
 {c:'linux-fundamentals',t:'Как использовать основные утилиты командной строки?',q:'Опишите назначение и ключевые опции утилит: ls, cp, mv, rm, find, xargs, tee, wc, cut, sort, uniq, tr.',a:'ls — список файлов: ls -la (подробно с скрытыми), ls -lh (читаемые размеры), ls -lt (по времени), ls -lS (по размеру). cp — копирование: cp -r src/ dst/ (рекурсивно), cp -a (архивный режим, сохраняет всё), cp -u (только новые). mv — перемещение/переименование: mv old new. rm — удаление: rm -r dir/ (рекурсивно), rm -f (без подтверждения). find — поиск: find / -name "*.conf" -mtime -7 (изменённые за 7 дней), find / -type f -size +100M (файлы больше 100 МБ), find / -perm -4000 (SUID-файлы). xargs — передача аргументов: find . -name "*.log" | xargs rm. tee — дублирование вывода: echo "text" | tee file.txt. wc — подсчёт: wc -l file (строки), wc -w (слова), wc -c (байты). cut — извлечение столбцов: cut -d: -f1 `/etc/passwd.` sort — сортировка: sort -n (числовая), sort -r (обратная), sort -u (уникальные). uniq — дедупликация: sort file | uniq -c (подсчёт). tr — замена символов: tr "A-Z" "a-z" (в нижний регистр), tr -d "0-9" (удалить цифры).',d:'beginner',tags:['утилиты','команды','cli']},
 {c:'linux-fundamentals',t:'Как работает механизм swap в Linux?',q:'Объясните назначение swap, типы (раздел и файл), параметры настройки и влияние на производительность.',a:'Swap — пространство на диске, куда ядро выгружает редко используемые страницы памяти. Назначение: расширение доступной памяти, защита от OOM, возможность гибернации. Типы: swap-раздел (mkswap `/dev/sda2`, swapon `/dev/sda2`) и swap-файл (dd if=/dev/zero of=/swapfile bs=1M count=4096, chmod 600 `/swapfile`, mkswap `/swapfile`, swapon `/swapfile`). Параметры: vm.swappiness (0-100) — склонность к swap, по умолчанию 60. Для десктопов: 10-30 (меньше swap, больше RAM). Для серверов БД: 1-10 (минимум swap). Проверка: swapon --show, free -h, cat `/proc/swaps.` Удаление: swapoff `/swapfile`, rm `/swapfile.` Постоянная конфигурация: `/etc/fstab` — `/swapfile` none swap sw 0 0. В 2026: zswap — сжатый кэш swap в RAM, уменьшает IO диска; zram — сжатый RAM-диск как swap, эффективен для систем с малой памятью. Для SSD: swap полезен, но следите за износом через SMART.',d:'intermediate',tags:['swap','память','производительность']},
 {c:'linux-fundamentals',t:'Как настроить переменные окружения в Linux?',q:'Объясните типы переменных окружения, файлы конфигурации оболочки и методы экспорта.',a:'## Основные элементы\n\n- Типы переменных: локальные (только в текущем shell), окружения (доступны дочерним процессам), системные (для всех пользователей). Установка: VAR=value — локальная\n- **export VAR=value** — переменная окружения\n- **unset VAR** — удаление. Файлы конфигурации Bash: `/etc/profile` — общесистемный логин\n- **/etc/bash.bashrc** — общесистемный интерактивный\n- **~/.bash_profile или ~/.profile** — пользовательский логин\n- **~/.bashrc** — пользовательский интерактивный. Порядок загрузки: login shell читает `/etc/profile`, затем первый найденный из ~/.bash_profile, ~/.bash_login, ~/.profile. Интерактивный non-login: ~/.bashrc. Системные переменные: `/etc/environment` (KEY=VALUE без export)\n- **/etc/profile.d/*.sh (скрипты с export). Просмотр: env** — все переменные окружения\n- **printenv VAR** — конкретная\n- **echo `$VAR`** — значение. Частые переменные: PATH — пути поиска программ\n- **HOME** — домашний каталог\n- **USER** — текущий пользователь\n- **LANG** — локаль\n- **EDITOR** — текстовый редактор\n- **PS1** — приглашение командной строки.',d:'beginner',tags:['переменные','окружение','bash','конфигурация']},
-
-// ================================================================
-// КНИГА 2: SYSTEM ADMINISTRATION — системное администрирование
-// Управление пользователями, процессами, дисками, загрузчиками,
-// сервисами, пакетами, мониторинг
-// ================================================================
 {c:'sysadmin',t:'Как управлять пользователями в Linux?',q:'Опишите создание, модификацию и удаление пользователей, структуру /etc/passwd и /etc/shadow.',a:'Создание: useradd -m -s `/bin/bash` -G docker,sudo username. Опция -m создаёт домашний каталог, -s задаёт оболочку, -G — дополнительные группы. Модификация: usermod -aG group username — добавить в группу; usermod -L username — заблокировать; usermod -U — разблокировать; usermod -s `/bin/zsh` username — сменить оболочку; usermod -d `/new/home` username — сменить домашний каталог. Удаление: userdel username — без домашнего каталога; userdel -r username — с домашним каталогом и почтой. Структура `/etc/passwd`: username:x:UID:GID:comment:home:shell. Поле x указывает, что пароль хранится в `/etc/shadow.` Структура `/etc/shadow`: username:hash:lastchange:min:max:warn:inactive:expire. Формат хеша: $id$salt$hash, где id=6 — SHA-512, id=y — yescrypt (стандарт 2026). Группы: `/etc/group` — имя:password:GID:members. Управление: groupadd, groupmod, groupdel, gpasswd -a user group.',d:'beginner',tags:['пользователи','useradd','passwd']},
 {c:'sysadmin',t:'Как управлять группами в Linux?',q:'Опишите создание групп, добавление пользователей в группы и управление членством.',a:'## Основные элементы\n\n- Группы позволяют организовать пользователей для совместного доступа к ресурсам. Создание: groupadd developers — создать группу\n- **groupadd -g 2000 testers** — с конкретным GID. Модификация: groupmod -n newname oldname — переименовать\n- **groupmod -g 2001 testers** — сменить GID. Удаление: groupdel developers. Управление членством: usermod -aG developers username — добавить пользователя в группу\n- **gpasswd -a username developers** — альтернативный способ\n- **gpasswd -d username developers** — удалить из группы\n- **gpasswd -M user1,user2,user3 developers** — установить список членов. Первичная группа: указана в `/etc/passwd` (GID)\n- **дополнительная** — в `/etc/group.` Команда groups username показывает все группы пользователя. Команда newgrp developers временно切换ает первичную группу. Специальные группы: wheel/sudo — права суперпользователя\n- **docker** — управление Docker\n- **www-data** — веб-сервер.\n\n## Актуальность 2026\n\nВ 2026: sssd для интеграции с LDAP/Active Directory.',d:'beginner',tags:['группы','usermod','членство']},
 {c:'sysadmin',t:'Как управлять процессами в Linux?',q:'Опишите мониторинг процессов, управление приоритетами и job control.',a:'## Основные элементы\n\n- **Мониторинг: ps aux** — все процессы\n- **ps -ef** — полный формат\n- **ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%mem** — кастомный вывод\n- **top и htop** — интерактивный мониторинг\n- **pgrep -f pattern** — найти PID по шаблону. Управление приоритетами: nice -n 10 command — запустить с пониженным приоритетом\n- **renice -n 5 -p PID** — изменить приоритет\n- **диапазон nice: -20 (наивысший) до 19 (низший). Job control: command &** — запустить в фоне\n- **jobs** — список фоновых задач\n- **fg %1** — вывести на передний план\n- **bg %1** — продолжить в фоне\n- **Ctrl+Z** — приостановить\n- **disown %1** — отвязать от оболочки. Сигналы: kill -TERM PID — корректное завершение\n- **kill -KILL PID** — принудительное\n- **killall process_name** — по имени. Системные лимиты: `/proc/PID/limits`\n- ulimit -a\n- `/etc/security/limits.conf.`',d:'beginner',tags:['процессы','ps','nice','jobs']},
@@ -77,11 +73,6 @@ const questions: Q[] = [
 {c:'sysadmin',t:'Как настроить backup-стратегию?',q:'Опишите типы бэкапов, инструменты и стратегию 3-2-1.',a:'Типы: Full — полная копия, просто восстановление, долго; Incremental — изменения с предыдущего бэкапа, быстро, сложно восстановление; Differential — с последнего полного, баланс. Стратегия 3-2-1: 3 копии, на 2 типах носителей, 1 вне площадки. Инструменты: rsync -avz --delete `/data/` backup-server:/backup/data/ — инкрементальная; restic backup `/data` --repo s3:bucket/repo — дедуплицированные зашифрованные; Borg Backup — эффективная дедупликация; Bacula/Bareos — корпоративные. Автоматизация: systemd timer или cron; проверка целостности (restic check, borg check); тест восстановления. Шифрование: restic и Borg поддерживают на стороне клиента.\n\n## Актуальность 2026\n\nВ 2026: объектные хранилища (S3) как целевой бакенд; immutable backups от шифровальщиков; Velero для K8s.',d:'intermediate',tags:['бэкап','rsync','restic','стратегия']},
 {c:'sysadmin',t:'Как управлять USB-устройствами и съёмными носителями?',q:'Опишите udev, правила для устройств, автомонтирование и безопасность USB.',a:'## Основные элементы\n\n- **udev** — менеджер устройств в Linux, создаёт файлы устройств в `/dev/` динамически. Правила udev: `/etc/udev/rules.d/` — локальные\n- **/lib/udev/rules.d/** — от пакетов. Формат правила: ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="1234", ATTR{idProduct}=="5678", SYMLINK+="mydevice", MODE="0660", GROUP="storage". Команды: udevadm info -a -n `/dev/sdb` — атрибуты устройства\n- **udevadm control --reload-rules** — перезагрузить правила\n- **udevadm trigger** — применить. Автомонтирование через udisks2: автоматически монтирует USB в `/run/media/username/LABEL.` Или через autofs: `/etc/auto.master` — `/mnt/usb` `/etc/auto.usb` --timeout=30. Безопасность: запретить USB через udev: SUBSYSTEM=="usb", ATTR{authorized}=="0". Групповая политика: OPTIONS+="ignore_device".\n\n## Актуальность 2026\n\nВ 2026: USBGuard — whitelist USB-устройств через сертификаты.',d:'intermediate',tags:['udev','usb','автомонтирование','устройства']},
 {c:'sysadmin',t:'Как работает PAM и зачем он нужен?',q:'Объясните архитектуру PAM, типичные модули и настройку политик аутентификации.',a:'## Основные элементы\n\n- **PAM (Pluggable Authentication Modules)** — архитектура подключаемых модулей аутентификации. Позволяет настраивать политики входа без перекомпиляции. Конфигурация: `/etc/pam.d/` — каталог с файлами для каждого сервиса. Формат: тип контроль модуль аргументы. Типы: auth — аутентификация\n- **account** — управление учётной записью\n- **password** — управление паролями\n- **session** — сессионные действия. Управление: required — модуль должен пройти\n- **requisite** — немедленный отказ\n- **sufficient** — прохождения достаточно\n- **optional** — игнорируется. Модули: pam_unix.so — стандартная проверка\n- **pam_tally2.so** — подсчёт неудачных попыток\n- **pam_pwquality.so** — политика сложности\n- **pam_google_authenticator.so** — 2FA TOTP\n- **pam_limits.so** — лимиты ресурсов. Пример: password requisite pam_pwquality.so try_first_pass retry=3 minlen=12 dcredit=-1 ucredit=-1.',d:'intermediate',tags:['pam','аутентификация','модули']},
-
-// ================================================================
-// КНИГА 3: LINUX SERVERS — настройка типичных серверов
-// Web, DNS, DHCP, база данных, файловые серверы
-// ================================================================
 {c:'linux-servers',t:'Как настроить веб-сервер Nginx?',q:'Опишите базовую и продвинутую конфигурацию Nginx: виртуальные хосты, обратный прокси, SSL/TLS.',a:'Базовая конфигурация: `/etc/nginx/nginx.conf` — глобальные настройки; `/etc/nginx/sites-available/` и sites-enabled/ — виртуальные хосты. Простой сервер: server { listen 80; server_name example.com; root `/var/www/html`; index index.html; location / { try_files $uri $uri/ =404; } }. Обратный прокси: location `/api/` { proxy_pass http://backend:3000/; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; }. SSL/TLS (2026): server { listen 443 ssl http2; ssl_certificate `/etc/letsencrypt/live/example.com/fullchain.pem`; ssl_certificate_key `/etc/letsencrypt/live/example.com/privkey.pem`; ssl_protocols TLSv1.3; }. Оптимизация: worker_processes auto; gzip on; client_max_body_size 50M; proxy_cache_path. Let us Encrypt: certbot --nginx -d example.com.',d:'intermediate',tags:['nginx','веб-сервер','прокси','ssl']},
 {c:'linux-servers',t:'Как настроить Apache HTTP Server?',q:'Опишите конфигурацию Apache: виртуальные хосты, модули, .htaccess и сравнение с Nginx.',a:'## Основные элементы\n\n- **Apache HTTP Server** — один из старейших веб-серверов. Конфигурация: `/etc/httpd/conf/httpd.conf` (RHEL) или `/etc/apache2/` (Debian). Виртуальные хосты: `/etc/apache2/sites-available/example.com.conf` — VirtualHost *:80, ServerName example.com, DocumentRoot `/var/www/html`, ErrorLog, CustomLog. Модули: a2enmod rewrite — включить\n- **a2dismod autoindex** — отключить. Ключевые модули: mod_ssl, mod_rewrite, mod_proxy, mod_headers, mod_security. .htaccess: AllowOverride All в конфигурации\n- **правила перезаписи, авторизация, кэширование. Сравнение с Nginx: Apache** — process/thread per connection (mpm_prefork/event)\n- **Nginx** — event-driven, эффективнее при высокой нагрузке. Apache лучше для .htaccess, dynamic content через mod_php. Nginx лучше для статических файлов и проксирования. В 2026: Apache с mpm_event приближается к Nginx по производительности. Рекомендация: Nginx фронтенд + Apache бэкенд.',d:'intermediate',tags:['apache','веб-сервер','модули']},
 {c:'linux-servers',t:'Как настроить DNS-сервер BIND?',q:'Опишите настройку авторитетного и кэширующего DNS-сервера, создание зон и управление записями.',a:'BIND — наиболее распространённый DNS-сервер. Конфигурация: `/etc/named.conf` (RHEL) или `/etc/bind/named.conf` (Debian). Кэширующий: options { listen-on port 53 { any; }; allow-query { 192.168.1.0/24; }; recursion yes; forwarders { 8.8.8.8; 1.1.1.1; }; }. Авторитетная зона: zone "example.com" IN { type master; file "example.com.zone"; }. Файл зоны: `$TTL` 86400, @ IN SOA ns1.example.com. admin.example.com. (2026010101 3600 900 604800 86400), @ IN NS ns1, @ IN A 192.168.1.10, www IN CNAME @, mail IN A 192.168.1.20, @ IN MX 10 mail, @ IN TXT "v=spf1 mx -all". Проверка: named-checkconf; named-checkzone example.com zonefile; dig @localhost example.com A. Безопасность: DNSSEC (dnssec-keygen, dnssec-signzone), TSIG, rate limiting. Альтернативы: Unbound (рекурсивный), PowerDNS (SQL-бэкенд), CoreDNS (Kubernetes).',d:'intermediate',tags:['dns','bind','зоны','сервер']},
@@ -95,11 +86,6 @@ const questions: Q[] = [
 {c:'linux-servers',t:'Как настроить обратный прокси и балансировку в Nginx?',q:'Опишите upstream, алгоритмы балансировки, health checks и SSL-терминацию.',a:'Upstream: upstream backend { server 192.168.1.10:8080\n\n## Основные элементы\n\n- server 192.168.1.11:8080\n- server 192.168.1.12:8080 backup\n- }. Алгоритмы: round-robin (по умолчанию)\n- **least_conn** — наименьшее число соединений\n- **ip_hash** — привязка по IP клиента\n- **hash $request_uri consistent** — по URI. Health checks: passive — max_fails=3, fail_timeout=30s\n- **active (Plus)** — health_check interval=5s. SSL-терминация: server { listen 443 ssl\n- ssl_certificate `/path/cert.pem`\n- location / { proxy_pass http://backend\n- proxy_set_header X-Forwarded-Proto https\n- } }. Rate limiting: limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s.\n\n## Актуальность 2026\n\nВ 2026: HTTP/3 (QUIC), gRPC-проксирование.',d:'intermediate',tags:['nginx','балансировка','прокси']},
 {c:'linux-servers',t:'Как настроить MySQL-сервер?',q:'Опишите установку, конфигурацию, пользователей, бэкап и оптимизацию MySQL.',a:'## Основные элементы\n\n- **Установка: apt install mysql-server. Безопасность: mysql_secure_installation** — установить root-пароль, удалить анонимных, тестовую БД. Пользователи: CREATE USER "appuser"@"%" IDENTIFIED BY "secret"\n- CREATE DATABASE appdb\n- GRANT ALL PRIVILEGES ON appdb.* TO "appuser"@"%"\n- FLUSH PRIVILEGES. Конфигурация `/etc/mysql/mysql.conf.d/mysqld.cnf`: innodb_buffer_pool_size = 1G\n- max_connections = 200\n- innodb_log_file_size = 256M\n- slow_query_log = 1\n- long_query_time = 2. Бэкап: mysqldump -u root -p appdb > backup.sql\n- mysql -u root -p appdb < backup.sql. Репликация: CHANGE MASTER TO MASTER_HOST="primary", MASTER_USER="repl", MASTER_PASSWORD="pass"\n- START SLAVE. Мониторинг: SHOW PROCESSLIST\n- SHOW STATUS LIKE "Threads%"\n- EXPLAIN SELECT ...',d:'intermediate',tags:['mysql','базы-данных','репликация']},
 {c:'linux-servers',t:'Как настроить LDAP-сервер OpenLDAP?',q:'Опишите установку и конфигурацию OpenLDAP для централизованного управления учётными записями.',a:'## Основные элементы\n\n- **OpenLDAP** — реализация LDAP-сервера для централизованной аутентификации. Установка: apt install slapd ldap-utils. Начальная конфигурация: dpkg-reconfigure slapd — домен, пароль администратора. Структура DIT: dc=example,dc=com — корень\n- **ou=People** — пользователи\n- **ou=Groups** — группы. Добавление записей: ldapadd -x -D "cn=admin,dc=example,dc=com" -W -f users.ldif. Формат LDIF: dn: uid=john,ou=People,dc=example,dc=com\n- objectClass: inetOrgPerson\n- uid: john\n- sn: Doe\n- givenName: John\n- mail: john@example.com\n- userPassword: {SSHA}hash. Клиентская настройка: apt install libnss-ldapd libpam-ldapd\n- **/etc/nsswitch.conf** — passwd, group, shadow: files ldap. Интеграция с SSH: в `/etc/pam.d/sshd` добавьте pam_ldap.so.\n\n## Актуальность 2026\n\nВ 2026: FreeIPA — комплексное решение с Web-UI, DNS, Kerberos, сертификатами поверх 389 Directory Server.',d:'advanced',tags:['ldap','openldap','аутентификация','централизация']},
-
-// ================================================================
-// КНИГА 4: LINUX STORAGE — управление дисками, разделами,
-// RAID, LVM и технологиями хранения
-// ================================================================
 {c:'linux-storage',t:'Что такое MBR и GPT и в чём разница?',q:'Сравните таблицы разделов MBR и GPT, их ограничения и сценарии использования.',a:'## Основные элементы\n\n- MBR (Master Boot Record): максимум 4 первичных раздела (или 3 + 1 расширенный), максимальный размер раздела 2 ТБ, одна копия таблицы, нет избыточности. GPT (GUID Partition Table): до 128 разделов, размер до 9.4 ЗБ, уникальные GUID, основная и резервная копия, CRC32 контрольные суммы, protective MBR для совместимости. Инструменты: fdisk — для MBR и GPT\n- **gdisk** — специализированный для GPT\n- **parted** — универсальный. Примеры: parted `/dev/sda` mklabel gpt\n- parted `/dev/sda` mkpart primary ext4 1MiB 100GiB\n- **gdisk /dev/sda** — интерактивный. EFI System Partition (ESP): тип EF00, FAT32, `/boot/efi`, минимум 100 МБ. Рекомендация 2026: GPT для всех новых установок. UEFI + GPT — стандарт. MBR только для legacy-систем.',d:'beginner',tags:['mbr','gpt','разделы','диски']},
 {c:'linux-storage',t:'Как создать и управлять разделами диска?',q:'Опишите использование fdisk, gdisk и parted для создания, удаления и изменения разделов.',a:'## Основные элементы\n\n- **fdisk (MBR и GPT): fdisk /dev/sda** — интерактивный. Команды: m — помощь\n- **p** — показать таблицу\n- **n** — новый раздел\n- **d** — удалить\n- **t** — изменить тип\n- **w** — записать\n- **q** — выйти. Пример: n (new), p (primary), 1 (number), Enter (default start), +50G (size), w (write). gdisk (GPT): аналогичный интерфейс, но для GPT. Типы разделов: EF00 — EFI System\n- **8300** — Linux filesystem\n- **8200** — Linux swap\n- **FD00** — Linux RAID. parted: parted `/dev/sda` mklabel gpt\n- parted `/dev/sda` mkpart primary ext4 1MiB 50GiB\n- parted `/dev/sda` rm 1\n- **parted /dev/sda print. Важное: после создания раздела** — partprobe `/dev/sda` или partx -a `/dev/sda` для обновления таблицы в ядре. Форматирование: mkfs.ext4 `/dev/sda1`\n- mkfs.xfs `/dev/sda1`\n- mkswap `/dev/sda2.` Монтирование: mount `/dev/sda1` `/mnt/data.`',d:'beginner',tags:['fdisk','gdisk','parted','разделы']},
 {c:'linux-storage',t:'Объясните уровни RAID и их применение',q:'Опишите RAID 0, 1, 5, 6, 10: принцип работы, преимущества, недостатки.',a:'RAID 0 (Striping): данные чередуются по дискам, нет избыточности. Плюс: максимальная скорость. Минус: потеря одного диска = потеря всех данных. RAID 1 (Mirroring): зеркалирование на два диска. Плюс: отказоустойчивость при потере одного диска. Минус: 50% эффективности. RAID 5 (Striping + parity): минимум 3 диска, выдерживает потерю одного. Плюс: 67-94% эффективности. Минус: медленная запись, долгая перестройка. RAID 6 (Double parity): минимум 4 диска, выдерживает потерю двух. RAID 10 (1+0): зеркала в stripe. Плюс: скорость + отказоустойчивость. Минус: 50% эффективности. Программный RAID: mdadm --create `/dev/md0` --level=5 --raid-devices=3 `/dev/sd`{b,c,d}. Мониторинг: cat `/proc/mdstat`; mdadm --detail `/dev/md0.`\n\n## Актуальность 2026\n\nВ 2026: mdadm остаётся стандартом программного RAID.',d:'intermediate',tags:['raid','массивы','отказоустойчивость']},
@@ -111,11 +97,6 @@ const questions: Q[] = [
 {c:'linux-storage',t:'Что такое Stratis и как он упрощает управление хранилищем?',q:'Объясните Stratis, его архитектуру и отличие от LVM.',a:'Stratis — менеджер локального хранилища от Red Hat, построен поверх LVM, xfs и device-mapper. Скрывает сложность: вместо PV/VG/LV — pool и filesystem. Снапшоты, тонкое провижинирование и мониторинг встроены. Создание: stratis pool create mypool `/dev/sdb` `/dev/sdc`; stratis filesystem create mypool myfs; stratis filesystem snapshot mypool myfs mysnap. Монтирование: `/dev/stratis/mypool/myfs` `/data` xfs defaults 0 0. Мониторинг: stratis pool list; stratis filesystem list; stratis blockdev list. Автоматические функции: тонкое провижинирование по умолчанию; автоматическое расширение при увеличении пула; прозрачное шифрование через Clevis. Ограничения (2026): только xfs; нет дедупликации; нет встроенной компрессии; только локальное хранилище. Рекомендация: Stratis для упрощённого управления на RHEL; LVM/ZFS для тонкого контроля.',d:'intermediate',tags:['stratis','lvm','хранилище','rhel']},
 {c:'linux-storage',t:'Как проверить и восстановить файловые системы?',q:'Опишите fsck, e2fsck, xfs_repair и стратегии восстановления данных.',a:'## Основные элементы\n\n- **fsck** — универсальный инструмент проверки. Для ext2/3/4: e2fsck -f -y `/dev/sda1` — принудительная проверка с автоисправлением\n- **e2fsck -p /dev/sda1** — автоматическое исправление безопасных проблем. Для XFS: xfs_repair `/dev/sda1` — проверка и восстановление (размонтировать сначала)\n- **xfs_repair -n /dev/sda1** — только проверка без изменений. Важное: fsck нельзя запускать на примонтированной ФС! Исключение: ext4 с journal может восстанавливаться при загрузке. Автоматическая проверка: tune2fs -c 30 `/dev/sda1` — каждые 30 монтирований\n- **tune2fs -i 30d /dev/sda1** — каждые 30 дней. Для Btrfs: btrfs scrub start `/mnt/data` — проверка чек-сумм\n- btrfs scrub status `/mnt/data`\n- **btrfs rescue** — восстановление. Восстановление данных: testdisk — восстановление разделов\n- **photorec** — восстановление файлов по сигнатурам.\n\n## Актуальность 2026\n\nВ 2026: e2fsck с поддержка metadata_csum_seed для быстрого изменения UUID.',d:'intermediate',tags:['fsck','восстановление','файловые-системы']},
 {c:'linux-storage',t:'Как настроить программный RAID через mdadm?',q:'Опишите создание, управление, мониторинг и восстановление RAID-массивов mdadm.',a:'## Основные элементы\n\n- Создание RAID 1: mdadm --create `/dev/md0` --level=1 --raid-devices=2 `/dev/sdb1` `/dev/sdc1.` RAID 5: mdadm --create `/dev/md1` --level=5 --raid-devices=3 `/dev/sd`{d,e,f}1. Проверка: cat `/proc/mdstat` — статус\n- **mdadm --detail /dev/md0** — подробности. Сохранение конфигурации: mdadm --detail --scan >> `/etc/mdadm/mdadm.conf`\n- update-initramfs -u. Мониторинг: mdadm --monitor --mail=admin@example.com --delay=300 `/dev/md0.` Восстановление после сбоя: mdadm `/dev/md0` --add `/dev/sdb1` — добавить заменённый диск\n- **watch cat /proc/mdstat** — следить за перестройкой. Удаление: mdadm --stop `/dev/md0`\n- mdadm --zero-superblock `/dev/sdb1.` Производительность: mdadm --detail `/dev/md0` | grep UUID\n- echo "MAILADDR admin@example.com" >> `/etc/mdadm/mdadm.conf.`\n\n## Актуальность 2026\n\nВ 2026: mdadm остаётся стандартом, интеграция с systemd для мониторинга.',d:'intermediate',tags:['raid','mdadm','массивы','восстановление']},
-
-// ================================================================
-// КНИГА 5: LINUX SECURITY — безопасность
-// Права, ACL, SELinux, пользователи и пароли, файрволы, аудит
-// ================================================================
 {c:'linux-security',t:'Как работают файловые разрешения в Linux?',q:'Опишите модель разрешений Linux, включая традиционные права и специальные биты.',a:'Традиционные разрешения: rwx для user/group/other. Чтение r=4, Запись w=2, Выполнение x=1. Пример: chmod 755 = rwxr-xr-x; chmod 640 = rw-r-----. Специальные биты: SUID (4000) — выполнение от имени владельца файла, например `/usr/bin/passwd`; SGID (2000) — выполнение от имени группы, новые файлы наследуют группу каталога; Sticky bit (1000) — только владелец может удалять файлы в каталоге, например `/tmp.` Команды: chmod 4755 file — установить SUID; chmod 2755 dir — установить SGID; chmod 1777 `/tmp` — sticky bit. Символический формат: chmod u+s file; chmod g+s dir; chmod +t dir. umask определяет права по умолчанию для новых файлов: umask 022 — файлы 644, каталоги 755; umask 027 — файлы 640, каталоги 750. Проверка: stat file; ls -la.',d:'beginner',tags:['права','chmod','suid','sgid']},
 {c:'linux-security',t:'Объясните ACL (Access Control Lists) в Linux',q:'Опишите расширенные списки контроля доступа, их настройку и применение.',a:'## Основные элементы\n\n- ACL расширяют традиционные разрешения rwx, позволяя задавать права конкретным пользователям и группам сверх стандартных owner/group/other. Просмотр: getfacl file.txt — показать все ACL-записи. Установка: setfacl -m u:bob:rw file.txt — права пользователю bob\n- **setfacl -m g:devs:rx file.txt** — права группе devs\n- **setfacl -m u:bob:rx dir/** — ACL на каталог. Default ACL (наследуются новыми файлами): setfacl -d -m u:bob:rw directory/. Удаление: setfacl -x u:bob file.txt — удалить запись\n- **setfacl -b file.txt** — удалить все ACL. Маска: setfacl -m m::r file.txt — ограничивает максимальные права для именованных пользователей и групп. ACL хранятся как расширенные атрибуты (user.posix_acl_access). При наличии ACL ls показывает символ "+" после прав: -rw-rw-r--+. Используйте ACL для сложных сценариев доступа, а для простых — традиционные разрешения плюс группы.',d:'intermediate',tags:['acl','права','setfacl','getfacl']},
 {c:'linux-security',t:'Как харденинговать сервер Linux?',q:'Предоставьте полный чеклист для харденинга продакшн-сервера Linux.',a:'Уровень ОС: автоматические обновления безопасности; удалите ненужные пакеты и сервисы; запретите root-вход по SSH; PermitRootLogin no, PasswordAuthentication no; файрвол nftables (2026). Аутентификация: SSH-ключи ed25519; 2FA через google-authenticator-libpam; Fail2ban или CrowdSec; umask 027; PAM-модули для политик паролей. Ядро: kernel.randomize_va_space = 2 (ASLR); SELinux или AppArmor в enforcing; kernel.kptr_restrict = 1. Сеть: закройте все входящие порты кроме необходимых; VPN для административного доступа; tcp_syncookies = 1. Аудит и мониторинг: auditd для логирования системных вызовов; централизованное логирование; AIDE или Tripwire для проверки целостности; Lynis для автоматического аудита.\n\n## Актуальность 2026\n\nВ 2026: systemd-sysupdate; Secure Boot + TPM; Trivy/Grype для образов; постквантовая криптография для долгосрочных секретов.',d:'intermediate',tags:['харденинг','безопасность','linux']},
@@ -129,10 +110,6 @@ const questions: Q[] = [
 {c:'linux-security',t:'Как настроить Fail2ban для защиты от брутфорса?',q:'Опишите установку, конфигурацию, кастомные фильтры и интеграцию с файрволом.',a:'Fail2ban — инструмент для автоматической блокировки IP-адресов после неудачных попыток входа. Установка: apt install fail2ban. Конфигурация: `/etc/fail2ban/jail.local` (не редактируйте jail.conf!). Базовая настройка: [DEFAULT] bantime = 3600, findtime = 600, maxretry = 3, banaction = nftables-multiport. SSH: [sshd] enabled = true, port = ssh, filter = sshd, logpath = `/var/log/auth.log.` Кастомный фильтр: `/etc/fail2ban/filter.d/myapp.conf` — [Definition] failregex = ^.*Authentication failure.*from <HOST>.*$, ignoreregex =. Мониторинг: fail2ban-client status — список jail; fail2ban-client status sshd — статистика SSH; fail2ban-client set sshd unbanip 1.2.3.4 — разбанить. Интеграция с nftables: banaction = nftables-multiport.\n\n## Актуальность 2026\n\nВ 2026: CrowdSec — современная альтернатива с collaborative intelligence, блокировка на основе репутации IP в реальном времени.',d:'intermediate',tags:['fail2ban','брутфорс','защита','файрвол']},
 {c:'linux-security',t:'Объясните рукопожатие TLS 1.3 и сертификаты',q:'Опишите процесс рукопожатия TLS 1.3 и проверку цепочки сертификатов.',a:'Рукопожатие TLS 1.3 (1-RTT):\n\n## Этапы\n\n1. ClientHello — версии, шифронаборы, key share\n2. ServerHello — выбранная версия/шифр, сертификат, CertificateVerify, Finished\n3. Клиент проверяет цепочку, отправляет Finished\n4. Данные приложения идут немедленно. Валидация цепочки: разобрать сертификат, извлечь издателя; найти сертификат издателя; проверить подпись публичным ключом издателя; повторить вверх: leaf, intermediate, root; root должен быть в `/etc/ssl/certs/`; проверки: не истёк, не отозван (CRL/OCSP), имя хоста совпадает с SAN/CN. Улучшения TLS 1.3: удалены RSA key exchange, CBC, MD5; 0-RTT для возобновлённых сессий; forward secrecy обязателен; зашифрованы ServerHello и сертификат. Диагностика: openssl s_client -connect example.com:443 -servername example.com.',d:'advanced',tags:['tls','ssl','сертификаты','шифрование']},
 {c:'linux-security',t:'Как защитить SSH-сервер?',q:'Опишите лучшие практики безопасности SSH: ключи, конфигурация, 2FA, аудит.',a:'Конфигурация `/etc/ssh/sshd_config`: Port 2222 (нестандартный порт); PermitRootLogin no; PasswordAuthentication no; PubkeyAuthentication yes; MaxAuthTries 3; LoginGraceTime 30; AllowUsers admin@192.168.1.*. Ключи: ssh-keygen -t ed25519 -C "comment" (рекомендация 2026); ssh-copy-id -i ~/.ssh/id_ed25519.pub user@server. 2FA: apt install libpam-google-authenticator; в sshd_config: AuthenticationMethods publickey,keyboard-interactive; настройка PAM в `/etc/pam.d/sshd.` Аудит: логирование в `/var/log/auth.log`; анализ через ausearch; мониторинг через fail2ban. Ограничение доступа: AllowUsers, AllowGroups, Match User admin Address 192.168.1.0/24. Jump host: ProxyJump в ~/.ssh/config.\n\n## Актуальность 2026\n\nВ 2026: SSH-сертификаты (ssh-ca) вместо trust-on-first-use; FIDO2-ключи; криптографические hardware-токены.',d:'intermediate',tags:['ssh','безопасность','аутентификация']},
-
-// ================================================================
-// ДОПОЛНИТЕЛЬНЫЕ ТЕМЫ (Сети, Bash, Docker, K8s, Terraform, etc.)
-// ================================================================
 {c:'networking',t:'Объясните троекратное рукопожатие TCP',q:'Опишите процесс установки и разрыва TCP-соединения.',a:'Установка:\n\n## Этапы\n\n1. Клиент отправляет SYN (seq=x)\n2. Сервер отвечает SYN-ACK (seq=y, ack=x+1)\n3. Клиент отправляет ACK (ack=y+1), соединение ESTABLISHED. Закрытие:\n1. Активная сторона FIN\n2. Пассивная ACK (FIN_WAIT_2, CLOSE_WAIT)\n3. Пассивная FIN (LAST_ACK)\n4. Активная ACK + TIME_WAIT (2*MSL). TIME_WAIT обеспечивает достижение последнего ACK и устаревание пакетов. Диагностика: ss -tanp; tcpdump -i eth0.\n\n## Актуальность 2026\n\nВ 2026: TCP-AO заменяет TCP-MD5 для BGP; TCP Fast Open уменьшает задержку.',d:'beginner',tags:['tcp','рукопожатие','протоколы']},
 {c:'networking',t:'Как работает DNS-разрешение?',q:'Опишите полный процесс DNS-разрешения от приложения до авторитетного сервера.',a:'Процесс:\n\n## Этапы\n\n1. Приложение вызывает getaddrinfo()\n2. Stub resolver проверяет `/etc/hosts`, затем `/etc/resolv.conf`\n3. Рекурсивный resolver проверяет кэш\n4. Корневой сервер возвращает NS для TLD\n5. TLD-сервер возвращает NS для авторитетного\n6. Авторитетный возвращает ответ\n7. Рекурсивный кэширует с TTL. Типы записей: A/AAAA, CNAME, MX, NS, TXT (SPF, DKIM, DMARC), SRV, SOA. Диагностика: dig example.com A +trace; nslookup example.com.\n\n## Актуальность 2026\n\nВ 2026: DNS-over-HTTPS (DoH) и DNS-over-TLS (DoT); DNSSEC; Encrypted Client Hello (ECH) скрывает SNI.',d:'intermediate',tags:['dns','разрешение','протоколы']},
 {c:'networking',t:'Объясните BGP и его роль в интернет-маршрутизации',q:'Что такое Border Gateway Protocol и почему он критически важен?',a:'## Основные элементы\n\n- **BGP** — протокол векторного пути, соединяющий автономные системы (AS). eBGP — между разными AS\n- **iBGP** — внутри одной AS. Атрибуты пути: AS-PATH, NEXT-HOP, LOCAL-PREF, MED, COMMUNITY. Выбор маршрута: наивысший LOCAL-PREF, кратчайший AS-PATH, наименьший MED, eBGP предпочтительнее iBGP. BGP переносит более 1 млн маршрутов\n- **одна ошибка** — утечки маршрутов или чёрные дыры. Безопасность: RPKI проверяет происхождение\n- **BGPsec валидирует путь.\n\n## Актуальность 2026\n\nВ 2026: ASPA (AS Provider Authorization)** — защита от утечек маршрутов.',d:'advanced',tags:['bgp','маршрутизация','интернет']},
@@ -153,173 +130,3 @@ const questions: Q[] = [
 {c:'ebpf',t:'Что такое eBPF и зачем он нужен?',q:'Объясните архитектуру eBPF и области применения.',a:'## Основные элементы\n\n- **eBPF** — запуск песочничных программ в ядре без модулей. Применение: наблюдаемость (трассировка)\n- сеть (XDP, Cilium)\n- безопасность (мониторинг вызовов). Преимущества: производительность (в ядре)\n- безопасность (верификатор)\n- **гибкость (без перезагрузки). Инструменты: bpftrace** — однострочники\n- **BCC** — библиотека\n- **libbpf** — C\n- **CO-RE** — переносимость.\n\n## Актуальность 2026\n\nВ 2026: Cilium (K8s), Pixie (трассировка), Tetragon (безопасность).',d:'intermediate',tags:['ebpf','наблюдаемость','ядро']},
 {c:'cloud-security',t:'Что такое IAM и принцип наименьших привилегий?',q:'Объясните модели IAM в AWS/Azure/GCP.',a:'AWS IAM: политики, роли, SCP. Azure RBAC: встроенные и кастомные роли, Managed Identity. GCP IAM: принципалы, роли, Workload Identity. Принцип наименьших привилегий: только необходимый минимум; конкретные действия вместо s3:*; условия (IPAddress, MFAAuthenticated). Инструменты: AWS Access Analyzer; Azure PIM; GCP Policy Intelligence.\n\n## Актуальность 2026\n\nВ 2026: Just-In-Time доступ; временные привилегии; AI-анализ политик.',d:'intermediate',tags:['iam','наименьшие-привилегии','облако']},
 ]
-
-async function main() {
-  console.log('Seeding database...')
-
-  // Демо-пользователь — нужен, чтобы /api/progress мог сохранять и отдавать прогресс.
-  // Без него endpoints прогресса возвращают пустой ответ.
-  await prisma.user.upsert({
-    where: { email: 'demo@sysadmin.academy' },
-    update: { name: 'Демо' },
-    create: {
-      email: 'demo@sysadmin.academy',
-      name: 'Демо',
-      level: 'Beginner',
-      xp: 0,
-      role: 'user',
-    },
-  })
-  console.log('Created demo user')
-
-  for (const cat of categories) {
-    await prisma.category.upsert({
-      where: { slug: cat.slug },
-      update: { name: cat.name, description: cat.description, icon: cat.icon, order: cat.order },
-      create: cat,
-    })
-  }
-  console.log(`Created ${categories.length} categories`)
-
-  let created = 0
-  for (const q of questions) {
-    const category = await prisma.category.findUnique({ where: { slug: q.c } })
-    if (!category) { console.error(`Category not found: ${q.c}`); continue }
-
-    const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
-
-    const question = await prisma.question.upsert({
-      where: { slug },
-      update: { title: q.t, content: q.q, answer: q.a, difficulty: q.d, categoryId: category.id },
-      create: {
-        title: q.t, slug, content: q.q, answer: q.a, difficulty: q.d,
-        source: 'academy', categoryId: category.id,
-      },
-    })
-
-    for (const tagName of q.tags) {
-      const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
-      const tag = await prisma.tag.upsert({
-        where: { slug: tagSlug },
-        update: { name: tagName },
-        create: { name: tagName, slug: tagSlug },
-      })
-      await prisma.questionTag.upsert({
-        where: { questionId_tagId: { questionId: question.id, tagId: tag.id } },
-        update: {},
-        create: { questionId: question.id, tagId: tag.id },
-      })
-    }
-
-    await prisma.aiExplanation.upsert({
-      where: { questionId: question.id },
-      update: {},
-      create: {
-        questionId: question.id,
-        // Объяснения оформлены в Markdown — фронтенд рендерит их через
-        // компонент MarkdownContent с разделением на блоки (заголовки, списки, код).
-        // Структура: краткое введение + ключевые пункты + практический совет.
-        beginnerExplanation: `## Простыми словами
-
-${q.t} — это базовая концепция, которую нужно понимать «на пальцах».
-
-## Ключевые идеи
-
-- Сосредоточьтесь на базовых принципах, прежде чем углубляться в детали
-- Попробуйте применить концепцию на тестовом стенде
-- Запомните 2-3 основные команды и их назначение
-
-> Совет: разберитесь сначала с «что это делает», потом — «как это работает».`,
-        intermediateExplanation: `## На среднем уровне
-
-Здесь важно понимать внутренние механизмы и взаимосвязи с другими подсистемами.
-
-## Что изучить
-
-- Внутреннее устройство и архитектура
-- Типовые сценарии использования
-- Взаимодействие с соседними подсистемами
-- Способы диагностики типичных проблем
-
-\`\`\`bash
-# Базовая команда для проверки состояния
-systemctl status <service>
-\`\`\`
-
-> На этом уровне важно уметь объяснить «почему», а не только «что».`,
-        advancedExplanation: `## Для продвинутых
-
-Глубокое понимание реализации, нетривиальные сценарии и оптимизация.
-
-## Темы для углубления
-
-1. Внутренние механизмы и производительность
-2. Краевые случаи и сценарии отказов
-3. Стратегии оптимизации под нагрузкой
-4. Архитектурные компромиссы (trade-offs)
-
-## Что обсудить на ревью
-
-- Метрики, которые стоит мониторить
-- Лимиты и узкие места
-- Планы масштабирования
-
-> Senior-уровень — это умение предсказывать поведение системы при пиковых нагрузках.`,
-        realWorldExample: `## Практический пример
-
-В продакшн-среде **${q.t}** — типичная задача при администрировании систем в 2026 году.
-
-## Сценарий из практики
-
-- Возникает при росте нагрузки или расширении инфраструктуры
-- Требует понимания как непосредственной команды, так и контекста
-- Ошибки здесь ведут к простою сервиса и потере данных
-
-## План действий при инциденте
-
-1. Подтвердить симптомы и собрать логи
-2. Изолировать проблемный компонент
-3. Применить известный fix или откатить изменение
-4. Провести post-mortem и обновить runbook
-
-> При расследовании инцидента понимание этой темы помогает быстро определить корневую причину.`,
-        interviewTips: `## Советы для собеседования
-
-Будьте готовы объяснить **${q.t}** с примерами из реального опыта.
-
-## Структура идеального ответа
-
-1. **Определение** — чётко сформулируйте, что это такое
-2. **Пример из практики** — конкретный случай с цифрами
-3. **Краевые случаи** — что идёт не так и как чинить
-4. **Связь с бизнесом** — влияние на надёжность/производительность
-
-## Типичные вопросы
-
-- «Расскажите о случае, когда вы это настраивали в продакшене»
-- «Как бы вы отладили проблему с этой технологией?»
-- «Какие альтернативы вы рассматривали и почему выбрали эту?»
-
-> Главное правило: лучше честно сказать «не знаю, но вот как бы я подошёл», чем выдумывать.`,
-        relatedTopics: q.tags.join(', '),
-      },
-    })
-    created++
-  }
-  console.log(`Created ${created} questions with AI explanations`)
-
-  await prisma.updateLog.create({
-    data: {
-      type: 'seed',
-      status: 'completed',
-      details: `Заполнение v3: ${categories.length} категорий, ${created} вопросов`,
-      itemsCount: created,
-    },
-  })
-
-  console.log('Seeding complete!')
-}
-
-main()
-  .catch((e) => { console.error(e); process.exit(1) })
-  .finally(async () => { await prisma.$disconnect() })

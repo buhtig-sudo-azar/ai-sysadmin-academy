@@ -21,7 +21,7 @@ import {
   CloudSun, GitBranch, Activity, Database, Globe, Search, BookOpen,
   BarChart3, Settings, Sun, Moon, Menu, ChevronRight, ChevronLeft, Star, Target,
   Brain, Zap, Clock, TrendingUp, Award, RefreshCw, Sparkles, Send, CheckCircle2,
-  XCircle, HelpCircle, ArrowRight, ArrowLeft, Eye, Lightbulb,
+  XCircle, HelpCircle, ArrowRight, Eye, Lightbulb,
   Trophy, LayoutDashboard, FolderOpen, Mic, Cpu, User, X, MessageSquare,
   Minimize2, Maximize2, Shrink, ArrowUp, HardDrive, Server, Lock, Wrench
 } from 'lucide-react'
@@ -587,7 +587,11 @@ function LearningView({ categories }: { categories: Category[] }) {
           </CardContent>
         </Card>
       )}
-      <div className="flex justify-between"><Button variant="outline" size="sm" onClick={() => { setShowAnswer(false); setSelectedQuestion(null); setCurrentIdx(i => Math.max(i - 1, 0)) }} disabled={currentIdx === 0}><ArrowLeft className="h-3 w-3 mr-1" /> Назад</Button><Button variant="outline" size="sm" onClick={() => { setShowAnswer(false); setSelectedQuestion(null); setCurrentIdx(i => Math.min(i + 1, questions.length - 1)) }} disabled={currentIdx >= questions.length - 1}>Далее <ArrowRight className="h-3 w-3 ml-1" /></Button></div>
+      {/* Только кнопка «Далее» — в режиме обучения пользователь движется вперёд.
+          Кнопка «Назад» была лишней: после markProgress (Повторить/Изучаю/Освоено)
+          уже происходит переход к следующему вопросу, и «Назад» дублировал эту логику.
+          Когда ответов больше нет — кнопка скрывается. */}
+      <div className="flex justify-end">{currentIdx < questions.length - 1 && <Button variant="outline" size="sm" onClick={() => { setShowAnswer(false); setSelectedQuestion(null); setCurrentIdx(i => Math.min(i + 1, questions.length - 1)) }}>Следующий вопрос <ArrowRight className="h-3 w-3 ml-1" /></Button>}</div>
     </div>
   )
 }
@@ -742,6 +746,9 @@ function AdminView() {
   const [syncState, setSyncState] = useState<{ repoUrl: string; lastSyncAt: string | null; status: string } | null>(null)
   const [recentLogs, setRecentLogs] = useState<{ id: string; type: string; status: string; details: string; createdAt: string }[]>([])
   const [syncing, setSyncing] = useState(false); const [generating, setGenerating] = useState(false); const [genResult, setGenResult] = useState('')
+  // Состояние для reseed — применяется Markdown-форматирование ко всем ответам.
+  // Это позволяет запустить обновление БД прямо из UI без доступа к терминалу.
+  const [reseeding, setReseeding] = useState(false); const [reseedResult, setReseedResult] = useState('')
   const [adminStats, setAdminStats] = useState<{ totalQuestions: number; totalCategories: number; totalTags: number; totalExplanations: number; beginner: number; intermediate: number; advanced: number } | null>(null)
   useEffect(() => {
     fetch('/api/admin/sync').then(r => r.json()).then(d => { setSyncState(d.syncState); setRecentLogs(d.recentLogs || []) })
@@ -749,12 +756,50 @@ function AdminView() {
   }, [])
   const triggerSync = async () => { setSyncing(true); try { await fetch('/api/admin/sync', { method: 'POST' }); const d = await (await fetch('/api/admin/sync')).json(); setSyncState(d.syncState); setRecentLogs(d.recentLogs || []) } catch {} setSyncing(false) }
   const genExpl = async () => { setGenerating(true); setGenResult(''); try { const d = await (await fetch('/api/admin/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate-explanations' }) })).json(); setGenResult(d.message || 'Готово') } catch { setGenResult('Ошибка') } setGenerating(false) }
+  // reseed — вызывает /api/admin/reseed, который обновляет все 86 ответов и
+  // объяснений Markdown-версиями. После завершения перезагружает статистику.
+  const triggerReseed = async () => {
+    setReseeding(true); setReseedResult('')
+    try {
+      const d = await (await fetch('/api/admin/reseed', { method: 'POST' })).json()
+      if (d.success) {
+        const stats = d.stats
+        setReseedResult(`✓ Готово: ${stats.questionsCreated + stats.questionsUpdated} вопросов обновлено, ${stats.explanationsCreated + stats.explanationsUpdated} объяснений`)
+        // Перезагружаем статистику
+        const newStats = await (await fetch('/api/stats')).json()
+        setAdminStats(newStats)
+      } else {
+        setReseedResult(`✗ Ошибка: ${d.error || 'неизвестно'}`)
+      }
+    } catch (e) {
+      setReseedResult(`✗ Ошибка сети: ${e instanceof Error ? e.message : 'unknown'}`)
+    }
+    setReseeding(false)
+  }
   const s = adminStats
   return (
     <div className="max-w-5xl space-y-4 sm:space-y-6"><h2 className="text-lg sm:text-xl font-bold">Админ-панель</h2>
       <Tabs defaultValue="content"><TabsList className="flex-wrap"><TabsTrigger value="content" className="text-xs">Контент</TabsTrigger><TabsTrigger value="sync" className="text-xs">GitHub Sync</TabsTrigger><TabsTrigger value="ai" className="text-xs">ИИ</TabsTrigger><TabsTrigger value="logs" className="text-xs">Логи</TabsTrigger></TabsList>
-        <TabsContent value="content" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4"><div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">{[[s?.totalQuestions ?? '—', 'Вопросов'], [s?.totalCategories ?? '—', 'Категорий'], [s?.totalExplanations ?? '—', 'ИИ-объясн.'], [s?.totalTags ?? '—', 'Тегов']].map(([v, l]) => (<div key={String(l)} className="text-center p-2 sm:p-3 rounded-lg bg-muted"><div className="text-lg sm:text-2xl font-bold">{v}</div><div className="text-[10px] sm:text-xs text-muted-foreground">{l}</div></div>))}</div>
+        <TabsContent value="content" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4 space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">{[[s?.totalQuestions ?? '—', 'Вопросов'], [s?.totalCategories ?? '—', 'Категорий'], [s?.totalExplanations ?? '—', 'ИИ-объясн.'], [s?.totalTags ?? '—', 'Тегов']].map(([v, l]) => (<div key={String(l)} className="text-center p-2 sm:p-3 rounded-lg bg-muted"><div className="text-lg sm:text-2xl font-bold">{v}</div><div className="text-[10px] sm:text-xs text-muted-foreground">{l}</div></div>))}</div>
           {s && <div className="mt-3 grid grid-cols-3 gap-2 text-center">{[['Начальный', s.beginner], ['Средний', s.intermediate], ['Продвинутый', s.advanced]].map(([l, v]) => (<div key={String(l)} className="p-2 rounded-lg bg-muted/50"><div className="text-sm font-bold">{v}</div><div className="text-[10px] text-muted-foreground">{String(l)}</div></div>))}</div>}
+          {/* Кнопка reseed — обновляет все ответы и объяснения Markdown-версиями.
+              Вызывает /api/admin/reseed, который делает upsert всех 86 вопросов
+              и 86 AI-объяснений с обновлёнными полями. */}
+          <Separator className="my-2" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={triggerReseed} disabled={reseeding} className="gap-1 text-xs">
+                <RefreshCw className={`h-3 w-3 ${reseeding ? 'animate-spin' : ''}`} />
+                {reseeding ? 'Пересидирование...' : 'Пересидировать БД (Markdown)'}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Обновляет все 86 ответов и AI-объяснений структурированным Markdown
+              с заголовками, списками и подсветкой команд.
+            </p>
+            {reseedResult && <div className={`text-xs rounded-lg p-2 ${reseedResult.startsWith('✓') ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400'}`}>{reseedResult}</div>}
+          </div>
         </CardContent></Card></TabsContent>
         <TabsContent value="sync" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4 space-y-3">
           {syncState && <div className="grid grid-cols-2 gap-2 text-xs"><div className="text-muted-foreground">Репо:</div><div className="font-mono text-[10px] sm:text-xs truncate">{syncState.repoUrl}</div><div className="text-muted-foreground">Статус:</div><div><Badge variant="secondary">{syncState.status === 'idle' ? 'Ожидание' : syncState.status}</Badge></div></div>}
