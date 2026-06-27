@@ -138,7 +138,7 @@ const questions: Q[] = [
 {c:'networking',t:'Объясните BGP и его роль в интернет-маршрутизации',q:'Что такое Border Gateway Protocol и почему он критически важен?',a:'BGP — протокол векторного пути, соединяющий автономные системы (AS). eBGP — между разными AS; iBGP — внутри одной AS. Атрибуты пути:\n\n## Основные элементы\n\n- **AS-PATH, NEXT-HOP, LOCAL-PREF, MED, COMMUNITY. Выбор маршрута**: наивысший LOCAL-PREF, кратчайший AS-PATH, наименьший MED, eBGP предпочтительнее iBGP. BGP переносит более 1 млн маршрутов\n- **одна ошибка** — утечки маршрутов или чёрные дыры. Безопасность: RPKI проверяет происхождение\n- BGPsec валидирует путь.\n\n## Актуальность 2026\n\nВ 2026: ASPA (AS Provider Authorization) — защита от утечек маршрутов.',d:'advanced',tags:['bgp','маршрутизация','интернет']},
 {c:'bash',t:'Расширение переменных и подстановка параметров',q:'Опишите типы расширения параметров в Bash с примерами.',a:'Базовое:\n\n## Основные элементы\n\n- `$VAR`\n- **`${VAR`:-default}** — по умолчанию\n- **`${VAR`:=default}** — присвоить\n- **`${VAR`:+alternate}** — альтернативное\n- **`${VAR`:?error}** — ошибка. Строки: ${#VAR} — длина\n- **`${VAR`%pattern}** — удалить кратчайший суффикс\n- **`${VAR`%%pattern}** — длиннейший\n- **`${VAR`#pattern}** — кратчайший префикс\n- **`${VAR`##pattern}** — длиннейший\n- **`${VAR``/old/new`}** — заменить первое\n- **`${VAR`/`/old/new`}** — все. Пример: FILE="archive.tar.gz"\n- `${FILE`##*.} = gz\n- **`${FILE`%.*} = archive.tar. Bash 5.2+: ${var@U}** — верхний регистр\n- **${var@L}** — нижний\n- **${var@Q}** — экранирование.',d:'intermediate',tags:['bash','переменные','расширение']},
 {c:'bash',t:'Как эффективно обрабатывать текстовые файлы?',q:'Опишите ключевые инструменты обработки текста с примерами.',a:'grep: grep -r "pattern" /path; grep -i "pattern" file; grep -E "regex" file; grep -v "pattern".\n\nsed: sed -n "10,20p" file; sed "s`/old/new/g`" file; sed -i. bak "s`/old/new/g`" file.\nawk: awk "{print $1, $3}" file; awk -F: "{print $1}" `/etc/passwd`; awk "$3 > 100 {print}" file.  sort`/uniq`: sort file | `uniq -c | sort -rn.`\n\n## Альтернативы\n\nАльтернативы 2026: ripgrep (rg) — быстрее grep; fd — замена find; jq`/yq` — JSON`/YAML`; mlr (Miller) — CSV`/TSV.`',d:'beginner',tags:['bash','обработка-текста','grep','awk','sed']},
-{c:'bash',t:'Напишите надёжный шаблон Bash-скрипта',q:'Создайте шаблон Bash-скрипта продакшн-качества.',a:'Начните:\n\n#! `/usr/bin/env` bash; `set -euo pipefail; IFS=$"\\\n\\	".`\nКонстанты: readonly SCRIPT_NAME="$(basename "$0")"; readonly LOG_FILE="`/var/log/``${SCRIPT_NAME}`. log".\nЛогирование: log() { echo "[$(date +"%Y-%m-%d %H:%M:%S")] [$1] $2" | `tee -a "`$LOG_FILE`"; }.`  Очистка: cleanup() { `rm -f "`$TEMP_FILE`"; exit $?`\n; }; trap cleanup EXIT.  Парсинг: while [[ $# -gt 0 ]]; do case $1 in -v|--verbose) VERBOSE=true; shift ;; -h|--help) usage ;; *) INPUT="$1"; shift ;; esac; done.\nПрактики: set -euo pipefail; trap для очистки; логирование; readonly для констант.\n\n## Актуальность 2026\n\nВ 2026: shellcheck для анализа; shfmt для форматирования.',d:'intermediate',tags:['bash','скриптинг','лучшие-практики']},
+{c:'bash',t:'Напишите надёжный шаблон Bash-скрипта',q:'Создайте шаблон Bash-скрипта продакшн-качества.',a:'Начните:\n\n#! `/usr/bin/env` bash; `set -euo pipefail; IFS=$"\\\n\\ ".`\nКонстанты: readonly SCRIPT_NAME="$(basename "$0")"; readonly LOG_FILE="`/var/log/``${SCRIPT_NAME}`. log".\nЛогирование: log() { echo "[$(date +"%Y-%m-%d %H:%M:%S")] [$1] $2" | `tee -a "`$LOG_FILE`"; }.`  Очистка: cleanup() { `rm -f "`$TEMP_FILE`"; exit $?`\n; }; trap cleanup EXIT.  Парсинг: while [[ $# -gt 0 ]]; do case $1 in -v|--verbose) VERBOSE=true; shift ;; -h|--help) usage ;; *) INPUT="$1"; shift ;; esac; done.\nПрактики: set -euo pipefail; trap для очистки; логирование; readonly для констант.\n\n## Актуальность 2026\n\nВ 2026: shellcheck для анализа; shfmt для форматирования.',d:'intermediate',tags:['bash','скриптинг','лучшие-практики']},
 {c:'docker',t:'Как написать оптимальный Dockerfile?',q:'Опишите лучшие практики: многоступенчатая сборка, минимизация слоёв, безопасность.',a:'Многоступенчатая:\n\nFROM node:20 AS builder; COPY . ; RUN npm ci && npm run build; FROM node:20-slim; COPY --from=builder `/app/dist` .\n`/dist.`  Минимизация: RUN apt-get update && apt-get `install -y pkg && rm -rf `/var/lib/apt/lists/`*.`\nБезопасность: USER 1000; COPY --chown=1000:1000; --secret для секретов; . dockerignore.\nОптимизация кэша: COPY package*. json; RUN npm ci; COPY .\n.  Базовые образы: alpine (5 МБ, musl); slim (glibc); distroless (без оболочки).\n\n## Актуальность 2026\n\nВ 2026: BuildKit — стандарт; --mount=type=cache; --mount=type=secret.',d:'intermediate',tags:['docker','dockerfile','оптимизация']},
 {c:'docker',t:'Как настроить Docker Compose?',q:'Опишите структуру docker-compose.yml, сети, volumes, переменные.',a:'Структура:\n\nservices: web: build: . , ports: ["8080:80"], depends_on: [db], environment: DB_HOST: db; db: image: postgres:16, environment: POSTGRES_PASSWORD: secret, volumes: [db-data:`/var/lib/postgresql/data`].\nСети: networks: frontend:, backend:.  Volumes: именованные (db-data:), bind-mount (.\n`/src`:`/app/src`), tmpfs.  Переменные: .\nenv файл; environment в compose; env_file: . env.\nHealthcheck: healthcheck: test: ["CMD", "curl", "-f", "http:/`/localhost`"], interval: 30s.  Ресурсы: deploy: resources: limits: cpus: "0.\n5", memory: 512M.\n\n## Актуальность 2026\n\nВ 2026: docker compose V2 (Go); profiles; watch для автоперезагрузки.',d:'intermediate',tags:['docker','compose','оркестрация']},
 {c:'kubernetes',t:'Объясните архитектуру Kubernetes',q:'Опишите компоненты control plane, worker node и поток запросов.',a:'Control Plane:\n\n## Основные элементы\n\n- **kube-apiserver** — REST API\n- **etcd** — хранилище состояния\n- **kube-scheduler** — назначение подов\n- **kube-controller-manager** — контроллеры\n- **cloud-controller-manager** — облако. Worker Node: kubelet — агент\n- **kube-proxy** — сетевой прокси\n- **containerd** — runtime. Поток: kubectl → apiserver (RBAC, admission) → etcd → scheduler → kubelet → container runtime → kube-proxy. В 2026: K8s 1.31+ с Gateway API, структурная авторизация, улучшенный HPA.',d:'intermediate',tags:['kubernetes','архитектура','control-plane']},
@@ -213,7 +213,93 @@ async function main() {
 
     await prisma.aiExplanation.upsert({
       where: { questionId: question.id },
-      update: {},
+      // ВАЖНО: update должен перезаписывать поля, иначе при повторном сиде
+      // старые плоские объяснения в БД не заменятся новыми Markdown-версиями.
+      update: {
+        beginnerExplanation: `## Простыми словами
+
+${q.t} — это базовая концепция, которую нужно понимать «на пальцах».
+
+## Ключевые идеи
+
+- Сосредоточьтесь на базовых принципах, прежде чем углубляться в детали
+- Попробуйте применить концепцию на тестовом стенде
+- Запомните 2-3 основные команды и их назначение
+
+> Совет: разберитесь сначала с «что это делает», потом — «как это работает».`,
+        intermediateExplanation: `## На среднем уровне
+
+Здесь важно понимать внутренние механизмы и взаимосвязи с другими подсистемами.
+
+## Что изучить
+
+- Внутреннее устройство и архитектура
+- Типовые сценарии использования
+- Взаимодействие с соседними подсистемами
+- Способы диагностики типичных проблем
+
+\`\`\`bash
+# Базовая команда для проверки состояния
+systemctl status <service>
+\`\`\`
+
+> На этом уровне важно уметь объяснить «почему», а не только «что».`,
+        advancedExplanation: `## Для продвинутых
+
+Глубокое понимание реализации, нетривиальные сценарии и оптимизация.
+
+## Темы для углубления
+
+1. Внутренние механизмы и производительность
+2. Краевые случаи и сценарии отказов
+3. Стратегии оптимизации под нагрузкой
+4. Архитектурные компромиссы (trade-offs)
+
+## Что обсудить на ревью
+
+- Метрики, которые стоит мониторить
+- Лимиты и узкие места
+- Планы масштабирования
+
+> Senior-уровень — это умение предсказывать поведение системы при пиковых нагрузках.`,
+        realWorldExample: `## Практический пример
+
+В продакшн-среде **${q.t}** — типичная задача при администрировании систем в 2026 году.
+
+## Сценарий из практики
+
+- Возникает при росте нагрузки или расширении инфраструктуры
+- Требует понимания как непосредственной команды, так и контекста
+- Ошибки здесь ведут к простою сервиса и потере данных
+
+## План действий при инциденте
+
+1. Подтвердить симптомы и собрать логи
+2. Изолировать проблемный компонент
+3. Применить известный fix или откатить изменение
+4. Провести post-mortem и обновить runbook
+
+> При расследовании инцидента понимание этой темы помогает быстро определить корневую причину.`,
+        interviewTips: `## Советы для собеседования
+
+Будьте готовы объяснить **${q.t}** с примерами из реального опыта.
+
+## Структура идеального ответа
+
+1. **Определение** — чётко сформулируйте, что это такое
+2. **Пример из практики** — конкретный случай с цифрами
+3. **Краевые случаи** — что идёт не так и как чинить
+4. **Связь с бизнесом** — влияние на надёжность/производительность
+
+## Типичные вопросы
+
+- «Расскажите о случае, когда вы это настраивали в продакшене»
+- «Как бы вы отладили проблему с этой технологией?»
+- «Какие альтернативы вы рассматривали и почему выбрали эту?»
+
+> Главное правило: лучше честно сказать «не знаю, но вот как бы я подошёл», чем выдумывать.`,
+        relatedTopics: q.tags.join(', '),
+      },
       create: {
         questionId: question.id,
         // Объяснения оформлены в Markdown — фронтенд рендерит их через
