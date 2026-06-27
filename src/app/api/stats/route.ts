@@ -1,8 +1,14 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { autoSeedIfNeeded } from '@/lib/auto-seed'
 
 export async function GET() {
   try {
+    // Автосидинг: если БД пустая, наполняем её Markdown-контентом.
+    // Это срабатывает при первом обращении к сайту после деплоя.
+    // Идемпотентно — если данные есть, ничего не делает.
+    await autoSeedIfNeeded()
+
     const [totalQuestions, totalCategories, totalTags, totalExplanations, difficultyBreakdown] = await Promise.all([
       db.question.count({ where: { isPublished: true } }),
       db.category.count(),
