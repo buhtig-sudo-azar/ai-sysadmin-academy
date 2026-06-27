@@ -5,25 +5,22 @@ import { seedCategories, seedQuestions } from '@/data/seed-data'
 /**
  * /api/admin/reseed — перезаполняет БД тестовыми данными из shared-модуля.
  *
- * Этот endpoint позволяет перезапустить сид прямо из браузера, без
- * доступа к SSH/CLI. Используется для применения обновлённого контента
- * (например, Markdown-форматирования ответов и AI-объяснений).
+ * ВАЖНО про serverless-таймауты:
+ *  - Vercel Hobby: 10 секунд на function
+ *  - Vercel Pro: 60 секунд (по умолчанию), до 300 секунд с maxDuration
+ *  - 86 вопросов × ~3 запроса к БД на каждый = ~260 запросов
+ *  - При 30ms на запрос = ~8 секунд — вписываемся в 10с, но рискованно
  *
- * Важно: данные берутся из src/data/seed-data.ts, который бандлится с
- * приложением. Это работает на serverless-платформах (Vercel), где
- * fs.readFileSync недоступен.
+ * Решение: используем $transaction для группировки операций в одну
+ * серверную транзакцию. Это в разы быстрее и атомарно — либо все данные
+ * создаются, либо ни одно (если что-то упадёт, откатывается).
  *
- * Безопасность: в production нужно защитить этот endpoint через
- * ADMIN_RESEED_TOKEN (переменная окружения). Если переменная не задана —
- * разрешаем без проверки (для dev-окружения).
- *
- * Логика:
- *  1. Проверяем токен (если задан ADMIN_RESEED_TOKEN)
- *  2. Очищаем все таблицы контента (порядок важен из-за foreign keys)
- *  3. Создаём demo-пользователя
- *  4. Создаём категории и вопросы с Markdown-контентом
- *  5. Возвращаем отчёт: сколько создано
+ * Также добавлен maxDuration = 60 секунд (поддерживается на Vercel).
  */
+
+// Force dynamic — иначе Vercel может закешировать ответ
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // секунд — Vercel Pro позволяет до 300
 
 // Шаблоны AI-объяснений в Markdown (должны совпадать с scripts/seed.ts)
 function buildExplanations(q: { t: string; tags: string[] }) {
@@ -125,149 +122,183 @@ export async function POST(request: NextRequest) {
   }
 
   const startTime = Date.now()
+  console.log('[reseed] Starting reseed...')
 
   try {
-    // 2. Очищаем таблицы (порядок важен из-за foreign keys)
-    // Сначала удаляем зависимые таблицы, потом главные.
-    await db.progress.deleteMany()
-    await db.userNote.deleteMany()
-    await db.contentVersion.deleteMany()
-    await db.aiExplanation.deleteMany()
-    await db.questionTag.deleteMany()
-    await db.question.deleteMany()
-    await db.tag.deleteMany()
-    await db.category.deleteMany()
-    await db.user.deleteMany()
-    // SyncState и UpdateLog не трогаем — это служебные таблицы
+    // 2. Атомарная транзакция — либо всё проходит, либо откатывается.
+    //    Это критически важно: если произойдёт таймаут посередине, БД
+    //    останется в прежнем состоянии (старые данные не удалятся).
+    const result = await db.$transaction(async (tx) => {
+      console.log('[reseed] Cleaning tables...')
+      // Очищаем в порядке зависимостей
+      await tx.progress.deleteMany()
+      await tx.userNote.deleteMany()
+      await tx.contentVersion.deleteMany()
+      await tx.aiExplanation.deleteMany()
+      await tx.questionTag.deleteMany()
+      await tx.question.deleteMany()
+      await tx.tag.deleteMany()
+      await tx.category.deleteMany()
+      await tx.user.deleteMany()
 
-    // 3. Создаём demo-пользователя
-    await db.user.create({
-      data: {
-        email: 'demo@sysadmin.academy',
-        name: 'Демо',
-        level: 'Beginner',
-        xp: 0,
-        role: 'user',
-      },
-    })
-
-    // 4. Создаём категории
-    let createdCategories = 0
-    for (const cat of seedCategories) {
-      await db.category.create({ data: cat })
-      createdCategories++
-    }
-
-    // 5. Создаём вопросы с тегами и AI-объяснениями
-    let createdQuestions = 0
-    let createdExplanations = 0
-    let createdTags = 0
-    const tagCache = new Map<string, string>() // slug → id
-
-    for (const q of seedQuestions) {
-      const category = await db.category.findUnique({ where: { slug: q.c } })
-      if (!category) {
-        console.error(`Категория не найдена: ${q.c}`)
-        continue
-      }
-
-      const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
-
-      const question = await db.question.create({
+      console.log('[reseed] Creating demo user...')
+      await tx.user.create({
         data: {
-          title: q.t,
-          slug,
-          content: q.q,
-          answer: q.a,
-          difficulty: q.d,
-          source: 'academy',
-          categoryId: category.id,
+          email: 'demo@sysadmin.academy',
+          name: 'Демо',
+          level: 'Beginner',
+          xp: 0,
+          role: 'user',
         },
       })
 
-      // Теги
-      for (const tagName of q.tags) {
-        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
-        let tagId = tagCache.get(tagSlug)
-        if (!tagId) {
-          const tag = await db.tag.upsert({
-            where: { slug: tagSlug },
-            update: { name: tagName },
-            create: { name: tagName, slug: tagSlug },
-          })
-          tagId = tag.id
-          tagCache.set(tagSlug, tagId)
-          createdTags++
+      console.log('[reseed] Creating categories...')
+      // Создаём категории и сохраняем маппинг slug → id
+      const categoryIds = new Map<string, string>()
+      for (const cat of seedCategories) {
+        const created = await tx.category.create({ data: cat })
+        categoryIds.set(cat.slug, created.id)
+      }
+
+      console.log('[reseed] Creating questions, tags, explanations...')
+      const tagCache = new Map<string, string>() // slug → id
+      let createdQuestions = 0
+      let createdExplanations = 0
+      let createdTags = 0
+
+      for (const q of seedQuestions) {
+        const categoryId = categoryIds.get(q.c)
+        if (!categoryId) {
+          console.error(`[reseed] Категория не найдена: ${q.c}`)
+          continue
         }
-        await db.questionTag.create({
-          data: { questionId: question.id, tagId },
-        }).catch(() => { /* ignore unique constraint violations */ })
+
+        const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
+
+        const question = await tx.question.create({
+          data: {
+            title: q.t,
+            slug,
+            content: q.q,
+            answer: q.a,
+            difficulty: q.d,
+            source: 'academy',
+            categoryId,
+          },
+        })
+
+        // Теги
+        for (const tagName of q.tags) {
+          const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
+          let tagId = tagCache.get(tagSlug)
+          if (!tagId) {
+            const tag = await tx.tag.upsert({
+              where: { slug: tagSlug },
+              update: { name: tagName },
+              create: { name: tagName, slug: tagSlug },
+            })
+            tagId = tag.id
+            tagCache.set(tagSlug, tagId)
+            createdTags++
+          }
+          try {
+            await tx.questionTag.create({
+              data: { questionId: question.id, tagId },
+            })
+          } catch {
+            // ignore unique constraint violations
+          }
+        }
+
+        // AI-объяснение
+        const expl = buildExplanations(q)
+        await tx.aiExplanation.create({
+          data: {
+            questionId: question.id,
+            ...expl,
+            model: 'reseed-api',
+          },
+        })
+        createdExplanations++
+        createdQuestions++
       }
 
-      // AI-объяснение
-      const expl = buildExplanations(q)
-      await db.aiExplanation.create({
-        data: {
-          questionId: question.id,
-          ...expl,
-          model: 'reseed-api',
-        },
-      })
-      createdExplanations++
-      createdQuestions++
-    }
+      return {
+        categories: seedCategories.length,
+        questions: createdQuestions,
+        explanations: createdExplanations,
+        tags: createdTags,
+      }
+    }, {
+      // Явно задаём таймаут транзакции — должен быть меньше maxDuration
+      timeout: 50_000, // 50 секунд
+    })
 
     const elapsed = Date.now() - startTime
+    console.log(`[reseed] Done in ${elapsed}ms`)
 
-    // 6. Логируем операцию
-    await db.updateLog.create({
-      data: {
-        type: 'reseed_via_api',
-        status: 'completed',
-        details: `Перезаполнение через /api/admin/reseed: ${createdCategories} кат., ${createdQuestions} вопр. (${elapsed}ms)`,
-        itemsCount: createdQuestions,
-      },
-    })
+    // Логируем успешную операцию
+    try {
+      await db.updateLog.create({
+        data: {
+          type: 'reseed_via_api',
+          status: 'completed',
+          details: `Перезаполнение через /api/admin/reseed: ${result.categories} кат., ${result.questions} вопр. (${elapsed}ms)`,
+          itemsCount: result.questions,
+        },
+      })
+    } catch (logErr) {
+      console.error('[reseed] Failed to write updateLog:', logErr)
+    }
 
     return NextResponse.json({
       success: true,
       message: 'База данных перезаполнена Markdown-контентом',
       stats: {
-        categories: createdCategories,
-        questions: createdQuestions,
-        explanations: createdExplanations,
-        tags: createdTags,
+        ...result,
         elapsedMs: elapsed,
       },
     })
   } catch (error) {
-    console.error('Reseed failed:', error)
+    console.error('[reseed] FAILED:', error)
+    const errMsg = error instanceof Error ? error.message : String(error)
+    const elapsed = Date.now() - startTime
+
     // Логируем ошибку
     try {
       await db.updateLog.create({
         data: {
           type: 'reseed_via_api',
           status: 'failed',
-          details: error instanceof Error ? error.message : 'Неизвестная ошибка',
+          details: `${errMsg} (after ${elapsed}ms)`,
         },
       })
     } catch { /* ignore */ }
+
     return NextResponse.json({
       success: false,
       error: 'Перезаполнение не удалось',
-      details: error instanceof Error ? error.message : 'Неизвестная ошибка',
+      details: errMsg,
+      elapsedMs: elapsed,
+      // Подсказка для пользователя, если это таймаут
+      hint: elapsed > 9000
+        ? 'Похоже на таймаут serverless-функции. Перейдите на Vercel Pro или запустите сид локально: npx tsx scripts/seed.ts'
+        : undefined,
     }, { status: 500 })
   }
 }
 
 export async function GET() {
+  // Проверяем, что данные доступны (без обращения к БД)
   return NextResponse.json({
     endpoint: '/api/admin/reseed',
     method: 'POST',
     description: 'Перезаполняет БД тестовыми данными из shared-модуля с Markdown-форматированием',
     auth: 'Требуется заголовок X-Admin-Token, если задана переменная окружения ADMIN_RESEED_TOKEN',
-    questionsCount: seedQuestions.length,
-    categoriesCount: seedCategories.length,
+    questionsAvailable: seedQuestions.length,
+    categoriesAvailable: seedCategories.length,
+    runtime: 'nodejs',
+    maxDuration: 60,
     usage: 'curl -X POST https://your-app/api/admin/reseed [-H "X-Admin-Token: secret"]',
   })
 }

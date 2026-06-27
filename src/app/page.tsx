@@ -758,21 +758,29 @@ function AdminView() {
   const genExpl = async () => { setGenerating(true); setGenResult(''); try { const d = await (await fetch('/api/admin/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'generate-explanations' }) })).json(); setGenResult(d.message || 'Готово') } catch { setGenResult('Ошибка') } setGenerating(false) }
   // reseed — вызывает /api/admin/reseed, который обновляет все 86 ответов и
   // объяснений Markdown-версиями. После завершения перезагружает статистику.
+  // ВАЖНО: операция может занять 10-30 секунд (86 вопросов × создание в БД).
+  // На Vercel Hobby-плане может не хватить 10-секундного таймаута — тогда
+  // нужно либо перейти на Pro, либо запустить сид локально.
   const triggerReseed = async () => {
-    setReseeding(true); setReseedResult('')
+    setReseeding(true); setReseedResult('Выполняю... (может занять 10-30 секунд)')
     try {
-      const d = await (await fetch('/api/admin/reseed', { method: 'POST' })).json()
+      const res = await fetch('/api/admin/reseed', { method: 'POST' })
+      const d = await res.json().catch(() => ({ success: false, error: 'Сервер не вернул JSON (вероятно, таймаут serverless-функции)' }))
       if (d.success) {
         const stats = d.stats
-        setReseedResult(`✓ Готово: ${stats.questions} вопросов, ${stats.explanations} объяснений, ${stats.tags} тегов, ${stats.categories} категорий`)
+        setReseedResult(`✓ Готово за ${Math.round((stats.elapsedMs || 0) / 1000)}с: ${stats.questions} вопросов, ${stats.explanations} объяснений, ${stats.tags} тегов, ${stats.categories} категорий`)
         // Перезагружаем статистику
         const newStats = await (await fetch('/api/stats')).json()
         setAdminStats(newStats)
       } else {
-        setReseedResult(`✗ Ошибка: ${d.error || 'неизвестно'}`)
+        const hint = d.hint ? `\n💡 ${d.hint}` : ''
+        setReseedResult(`✗ Ошибка: ${d.error || 'неизвестно'}${d.details ? `\nДетали: ${d.details}` : ''}${hint}`)
       }
     } catch (e) {
-      setReseedResult(`✗ Ошибка сети: ${e instanceof Error ? e.message : 'unknown'}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      // Если fetch упал с abort/timeout — это serverless-таймаут
+      const isTimeout = msg.includes('abort') || msg.includes('timeout') || msg.includes('Timeout')
+      setReseedResult(`✗ ${isTimeout ? 'Таймаут serverless-функции (>60с)' : 'Ошибка сети'}: ${msg}${isTimeout ? '\n💡 Запустите сид локально: npx tsx scripts/seed.ts' : ''}`)
     }
     setReseeding(false)
   }
@@ -798,7 +806,7 @@ function AdminView() {
               Обновляет все 86 ответов и AI-объяснений структурированным Markdown
               с заголовками, списками и подсветкой команд.
             </p>
-            {reseedResult && <div className={`text-xs rounded-lg p-2 ${reseedResult.startsWith('✓') ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400'}`}>{reseedResult}</div>}
+            {reseedResult && <div className={`text-xs rounded-lg p-2 whitespace-pre-wrap ${reseedResult.startsWith('✓') ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400' : reseedResult.startsWith('Выполняю') ? 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400' : 'bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400'}`}>{reseedResult}</div>}
           </div>
         </CardContent></Card></TabsContent>
         <TabsContent value="sync" className="mt-3 sm:mt-4"><Card><CardContent className="p-3 sm:p-4 space-y-3">
