@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAppStore, DIFFICULTY_COLORS, DIFFICULTY_LABELS, LEVELS, getLevelForXP, getNextLevel, getProgressToNextLevel, type AppView } from '@/lib/store'
 import { useChatStore } from '@/lib/chat-store'
 import { chatPrompts, defaultPrompt } from '@/data/chat-prompts'
@@ -58,7 +58,7 @@ const VIEW_TITLES: Record<AppView, string> = {
 }
 
 export default function Home() {
-  const { currentView, setView, darkMode, toggleDarkMode } = useAppStore()
+  const { currentView, navigateToView, darkMode, toggleDarkMode, selectedCategory } = useAppStore()
   const [categories, setCategories] = useState<Category[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -68,6 +68,15 @@ export default function Home() {
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMinimized, setChatMinimized] = useState(false)
   const [chatExpanded, setChatExpanded] = useState(false)
+
+  // Slug выбранной категории — нужен для передачи в AgentChatPopup,
+  // чтобы ИИ-наставник использовал специализированный системный промпт
+  // (chatPrompts в src/data/chat-prompts.ts) именно для текущего раздела.
+  // Например, при открытии категории Docker чат будет отвечать только по Docker.
+  const currentCategorySlug = useMemo(
+    () => categories.find(c => c.id === selectedCategory)?.slug ?? null,
+    [categories, selectedCategory]
+  )
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -113,7 +122,7 @@ export default function Home() {
       case 'search': return <SearchView categories={categories} />
       case 'learning': return <LearningView categories={categories} />
       case 'interview': return <InterviewView categories={categories} />
-      case 'mentor': return <MentorView />
+      case 'mentor': return <MentorView categories={categories} />
       case 'progress': return <ProgressView />
       case 'admin': return <AdminView />
       default: return <DashboardView stats={stats} categories={categories} loading={loading} onOpenChat={() => setChatOpen(true)} />
@@ -132,7 +141,7 @@ export default function Home() {
       </div>
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => (
-          <button key={item.view} onClick={() => { setView(item.view); setMobileMenuOpen(false) }}
+          <button key={item.view} onClick={() => { navigateToView(item.view); setMobileMenuOpen(false) }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === item.view ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground hover:text-foreground'}`}>
             {item.icon}
             {!sidebarCollapsed && <span>{item.label}</span>}
@@ -187,10 +196,12 @@ export default function Home() {
         <ArrowUp className="h-5 w-5" />
       </button>
 
-      {/* Agent Chat Popup */}
+      {/* Agent Chat Popup — передаём slug текущей категории, чтобы ИИ-наставник
+          в чате использовал подходящий системный промпт (например, для docker,
+          kubernetes и т.д.), отвечая строго в контексте изучаемого раздела. */}
       <AgentChatPopup open={chatOpen} onClose={() => { setChatOpen(false); setChatMinimized(false); setChatExpanded(false) }}
         minimized={chatMinimized} onMinimize={() => setChatMinimized(true)} onRestore={() => setChatMinimized(false)}
-        expanded={chatExpanded} onExpand={() => setChatExpanded(p => !p)} currentCategorySlug={null} />
+        expanded={chatExpanded} onExpand={() => setChatExpanded(p => !p)} currentCategorySlug={currentCategorySlug} />
     </div>
   )
 }
@@ -304,7 +315,11 @@ function AgentChatPopup({ open, onClose, minimized, onMinimize, onRestore, expan
 
 /* ============ ГЛАВНАЯ ============ */
 function DashboardView({ stats, categories, loading, onOpenChat }: { stats: Stats | null; categories: Category[]; loading: boolean; onOpenChat: () => void }) {
-  const { setView, setSelectedCategory } = useAppStore()
+  // navigateToView — сбрасывает контекст (нет конкретного вопроса/категории),
+  // это нужно для кнопок «Обучение» / «Собеседование» на главной,
+  // чтобы пользователь начинал с чистого режима, а не с устаревшего выбора.
+  // openCategory — устанавливает выбранную категорию и открывает список вопросов.
+  const { navigateToView, openCategory } = useAppStore()
   if (loading) return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />)}</div>
   if (!stats) return <div>Не удалось загрузить данные</div>
   return (
@@ -314,8 +329,8 @@ function DashboardView({ stats, categories, loading, onOpenChat }: { stats: Stat
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">ИИ Академия Сисадмина</h1>
           <p className="text-emerald-100 text-xs sm:text-sm md:text-base mb-4">Современная образовательная платформа. {stats.totalQuestions} вопросов с ИИ-объяснениями. Июнь 2026.</p>
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            <Button variant="secondary" size="sm" onClick={() => setView('learning')} className="gap-1"><BookOpen className="h-3 w-3 sm:h-4 sm:w-4" /> Обучение</Button>
-            <Button variant="outline" size="sm" className="text-white border-white/30 hover:bg-white/10" onClick={() => setView('interview')}><Mic className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Собеседование</Button>
+            <Button variant="secondary" size="sm" onClick={() => navigateToView('learning')} className="gap-1"><BookOpen className="h-3 w-3 sm:h-4 sm:w-4" /> Обучение</Button>
+            <Button variant="outline" size="sm" className="text-white border-white/30 hover:bg-white/10" onClick={() => navigateToView('interview')}><Mic className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Собеседование</Button>
             <Button variant="outline" size="sm" className="text-white border-white/30 hover:bg-white/10" onClick={onOpenChat}><Brain className="h-3 w-3 sm:h-4 sm:w-4 mr-1" /> Чат с ИИ</Button>
           </div>
         </CardContent>
@@ -343,7 +358,7 @@ function DashboardView({ stats, categories, loading, onOpenChat }: { stats: Stat
         <h3 className="font-semibold text-base sm:text-lg mb-3">Категории</h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
           {categories.map((cat) => (
-            <Card key={cat.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => { setSelectedCategory(cat.id); setView('questions') }}>
+            <Card key={cat.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => openCategory(cat.id)}>
               <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
                 <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">{ICON_MAP[cat.icon] || <FolderOpen className="h-4 w-4 sm:h-5 sm:w-5" />}</div>
                 <div className="min-w-0"><div className="font-medium text-xs sm:text-sm truncate">{cat.name}</div><div className="text-[10px] sm:text-xs text-muted-foreground">{cat._count?.questions || 0} вопр.</div></div>
@@ -358,13 +373,14 @@ function DashboardView({ stats, categories, loading, onOpenChat }: { stats: Stat
 
 /* ============ КАТЕГОРИИ ============ */
 function CategoriesView({ categories }: { categories: Category[] }) {
-  const { setView, setSelectedCategory } = useAppStore()
+  // openCategory — устанавливает категорию и переключает на список вопросов.
+  const { openCategory } = useAppStore()
   return (
     <div className="max-w-5xl space-y-4">
       <div><h2 className="text-lg sm:text-xl font-bold">Все категории</h2><p className="text-xs sm:text-sm text-muted-foreground">Выберите область для изучения</p></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         {categories.map((cat) => (
-          <Card key={cat.id} className="cursor-pointer hover:shadow-md transition-all hover:border-primary/30" onClick={() => { setSelectedCategory(cat.id); setView('questions') }}>
+          <Card key={cat.id} className="cursor-pointer hover:shadow-md transition-all hover:border-primary/30" onClick={() => openCategory(cat.id)}>
             <CardHeader className="pb-2"><div className="flex items-center gap-3"><div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-muted flex items-center justify-center shrink-0">{ICON_MAP[cat.icon] || <FolderOpen className="h-5 w-5 sm:h-6 sm:w-6" />}</div><div><CardTitle className="text-sm sm:text-base">{cat.name}</CardTitle><CardDescription className="text-xs">{cat._count?.questions || 0} вопросов</CardDescription></div></div></CardHeader>
             <CardContent className="pt-0"><p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{cat.description}</p><div className="mt-2 sm:mt-3 flex items-center text-xs text-primary">Начать <ArrowRight className="h-3 w-3 ml-1" /></div></CardContent>
           </Card>
@@ -376,7 +392,11 @@ function CategoriesView({ categories }: { categories: Category[] }) {
 
 /* ============ ВОПРОСЫ ============ */
 function QuestionsView() {
-  const { selectedCategory, setSelectedCategory } = useAppStore()
+  // selectedCategory из store — это категория, выбранная пользователем
+  // (например, при клике на карточку категории). Локальный selectedCategory
+  // не нужен — мы работаем напрямую с глобальным состоянием, чтобы
+  // переход «Изучить» / «Практика» наследовал категорию.
+  const { selectedCategory, setSelectedCategory, navigateToView } = useAppStore()
   const [questions, setQuestions] = useState<Question[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -396,9 +416,23 @@ function QuestionsView() {
   return (
     <div className="max-w-4xl space-y-3 sm:space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
-        <Button variant="ghost" size="sm" onClick={() => setSelectedCategory(null)}><ChevronLeft className="h-4 w-4 mr-1" /> Все</Button>
+        {/* Кнопка «К категориям» — возвращает в раздел категорий и сбрасывает фильтр.
+            Это контекстно-корректный переход: иконка ChevronLeft у пользователя
+            ассоциируется с «назад», и раньше она лишь очищала фильтр, оставляя
+            пользователя в том же виде — это было неинтуитивно. */}
+        <Button variant="ghost" size="sm" onClick={() => { setSelectedCategory(null); navigateToView('categories') }}><ChevronLeft className="h-4 w-4 mr-1" /> К категориям</Button>
         {categories.find(c => c.id === selectedCategory) && <Badge variant="secondary" className="text-xs">{categories.find(c => c.id === selectedCategory)?.name}</Badge>}
       </div>
+      {/* Контекстно-зависимые действия раздела: «Изучить раздел» и «Практика раздела».
+          Эти кнопки переключают в режим обучения / собеседования, наследуя выбранную
+          категорию (selectedCategory уже установлен в store). Никакого явного
+          setSelectedQuestion — пользователь начинает с первого вопроса в категории. */}
+      {selectedCategory && (
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="secondary" className="gap-1 text-xs" onClick={() => navigateToView('learning')}><BookOpen className="h-3 w-3" /> Изучить раздел</Button>
+          <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => navigateToView('interview')}><Mic className="h-3 w-3" /> Практика раздела</Button>
+        </div>
+      )}
       <div className="flex gap-1.5 sm:gap-2 flex-wrap">{[['all', 'Все'], ['beginner', 'Начальный'], ['intermediate', 'Средний'], ['advanced', 'Продвинутый']].map(([d, l]) => (
         <Button key={d} variant={difficulty === d ? 'default' : 'outline'} size="sm" className="text-xs" onClick={() => { setDifficulty(d); setPage(1) }}>{l}</Button>
       ))}</div>
@@ -410,7 +444,11 @@ function QuestionsView() {
 }
 
 function QuestionCard({ question }: { question: Question }) {
-  const { setView, setSelectedQuestion } = useAppStore()
+  // openQuestion — устанавливает выбранный вопрос и переключает в нужный режим
+  // (learning или interview), сохраняя контекст категории. Раньше тут использовался
+  // setView, который очищал selectedQuestion — поэтому «Изучить» / «Практика»
+  // открывали первый вопрос из списка, а не тот, на который кликнули.
+  const { openQuestion } = useAppStore()
   const [expanded, setExpanded] = useState(false)
   return (
     <Card className="hover:shadow-sm transition-shadow">
@@ -428,8 +466,8 @@ function QuestionCard({ question }: { question: Question }) {
         </div>
         {expanded && <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t"><div className="whitespace-pre-wrap text-xs sm:text-sm bg-muted/50 rounded-lg p-3 max-h-60 overflow-y-auto">{question.answer}</div>
           <div className="mt-2 sm:mt-3 flex gap-1.5 sm:gap-2">
-            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setSelectedQuestion(question.id); setView('learning') }}><BookOpen className="h-3 w-3 mr-1" /> Изучить</Button>
-            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => { setSelectedQuestion(question.id); setView('interview') }}><Mic className="h-3 w-3 mr-1" /> Практика</Button>
+            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openQuestion(question.id, 'learning')}><BookOpen className="h-3 w-3 mr-1" /> Изучить</Button>
+            <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openQuestion(question.id, 'interview')}><Mic className="h-3 w-3 mr-1" /> Практика</Button>
           </div></div>}
       </CardContent>
     </Card>
@@ -463,23 +501,62 @@ function SearchView({ categories }: { categories: Category[] }) {
 
 /* ============ ОБУЧЕНИЕ ============ */
 function LearningView({ categories }: { categories: Category[] }) {
-  const { selectedQuestion, setSelectedQuestion } = useAppStore()
-  const [questions, setQuestions] = useState<Question[]>([]); const [currentIdx, setCurrentIdx] = useState(0); const [showAnswer, setShowAnswer] = useState(false)
-  const [explanationTab, setExplanationTab] = useState('beginner'); const [selectedCategory, setSelectedCategory] = useState(''); const [difficulty, setDifficulty] = useState('')
+  // selectedQuestion — из store (если пользователь кликнул «Изучить» на конкретном вопросе).
+  // selectedCategory (из store) — контекст категории, выбранный пользователем
+  // (например, из карточки категории). Раньше локальный selectedCategory
+  // инициализировался пустой строкой, из-за чего контекст категории терялся
+  // при переходе из QuestionsView в LearningView.
+  const { selectedQuestion, setSelectedQuestion, selectedCategory: storeCategoryId, setSelectedCategory: setStoreCategory } = useAppStore()
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [currentIdx, setCurrentIdx] = useState(0)
+  const [showAnswer, setShowAnswer] = useState(false)
+  const [explanationTab, setExplanationTab] = useState('beginner')
+  const [difficulty, setDifficulty] = useState('')
+  // Локальный фильтр категории синхронизирован с store: при первом монтировании
+  // берём значение из store, чтобы сохранить контекст. Пользователь может
+  // изменить его через селектор — изменение сохраняется в store.
+  const [selectedCategory, setSelectedCategory] = useState(storeCategoryId || '')
+
   useEffect(() => {
     const params = new URLSearchParams(); params.set('mode', 'learning')
     if (selectedCategory) params.set('categoryId', selectedCategory); if (difficulty) params.set('difficulty', difficulty); params.set('limit', '50')
     fetch(`/api/questions?${params}`).then(r => r.json()).then(data => setQuestions(data.questions || []))
   }, [selectedCategory, difficulty])
-  const current = questions[selectedQuestion ? questions.findIndex(q => q.id === selectedQuestion) : currentIdx]
-  const markProgress = async (status: string) => { if (!current) return; await fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: current.id, status, score: status === 'mastered' ? 100 : 50 }) }); setShowAnswer(false); setSelectedQuestion(null); setCurrentIdx(i => Math.min(i + 1, questions.length - 1)) }
+
+  // current — это вычисляемое значение (derived state), а не эффект.
+  // Если выбран конкретный вопрос (selectedQuestion), показываем его;
+  // иначе — вопрос по текущему индексу. Это устраняет необходимость в эффекте,
+  // который синхронизировал бы selectedQuestion и currentIdx.
+  // find вернёт undefined, если вопрос не найден — тогда компонент покажет заглушку.
+  const current = selectedQuestion
+    ? questions.find(q => q.id === selectedQuestion) ?? questions[currentIdx]
+    : questions[currentIdx]
+
+  const markProgress = async (status: string) => {
+    if (!current) return
+    await fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questionId: current.id, status, score: status === 'mastered' ? 100 : 50 }) })
+    setShowAnswer(false)
+    // Сбрасываем selectedQuestion, чтобы после перехода к следующему вопросу
+    // навигация «Назад» / «Далее» работала по currentIdx, а не пыталась
+    // снова найти устаревший selectedQuestion.
+    setSelectedQuestion(null)
+    setCurrentIdx(i => Math.min(i + 1, questions.length - 1))
+  }
+  // При смене фильтра категории синхронизируем store, чтобы другие виды
+  // (например, Interview при переключении) наследовали этот выбор.
+  const onCategoryChange = (val: string) => {
+    setSelectedCategory(val)
+    setStoreCategory(val || null)
+    setCurrentIdx(0)
+    setSelectedQuestion(null)
+  }
   return (
     <div className="max-w-4xl space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div><h2 className="text-lg sm:text-xl font-bold">Обучение</h2><p className="text-xs text-muted-foreground">Вопрос {currentIdx + 1} из {questions.length}</p></div>
         <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-          <select value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setCurrentIdx(0) }} className="text-xs border rounded-md px-2 py-1.5 bg-background"><option value="">Все</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-          <select value={difficulty} onChange={(e) => { setDifficulty(e.target.value); setCurrentIdx(0) }} className="text-xs border rounded-md px-2 py-1.5 bg-background"><option value="">Все</option><option value="beginner">Начальный</option><option value="intermediate">Средний</option><option value="advanced">Продвинутый</option></select>
+          <select value={selectedCategory} onChange={(e) => onCategoryChange(e.target.value)} className="text-xs border rounded-md px-2 py-1.5 bg-background"><option value="">Все</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+          <select value={difficulty} onChange={(e) => { setDifficulty(e.target.value); setCurrentIdx(0); setSelectedQuestion(null) }} className="text-xs border rounded-md px-2 py-1.5 bg-background"><option value="">Все</option><option value="beginner">Начальный</option><option value="intermediate">Средний</option><option value="advanced">Продвинутый</option></select>
         </div>
       </div>
       {current && (
@@ -512,23 +589,47 @@ function LearningView({ categories }: { categories: Category[] }) {
 
 /* ============ СОБЕСЕДОВАНИЕ ============ */
 function InterviewView({ categories }: { categories: Category[] }) {
-  const [selectedCategory, setSelectedCategory] = useState(''); const [questions, setQuestions] = useState<Question[]>([]); const [currentIdx, setCurrentIdx] = useState(0)
+  // selectedQuestion из store: если пользователь кликнул «Практика» на конкретном
+  // вопросе, нужно открыть именно его, а не первый вопрос в списке.
+  // selectedCategory из store — контекст выбранной категории, чтобы переход
+  // «Практика» из QuestionsView наследовал категорию.
+  const { selectedQuestion, setSelectedQuestion, selectedCategory: storeCategoryId, setSelectedCategory: setStoreCategory } = useAppStore()
+  const [selectedCategory, setSelectedCategory] = useState(storeCategoryId || '')
+  const [questions, setQuestions] = useState<Question[]>([]); const [currentIdx, setCurrentIdx] = useState(0)
   const [userAnswer, setUserAnswer] = useState(''); const [feedback, setFeedback] = useState(''); const [score, setScore] = useState<number | null>(null); const [showAnswer, setShowAnswer] = useState(false)
   const [totalScore, setTotalScore] = useState(0); const [answered, setAnswered] = useState(0)
   useEffect(() => { const params = new URLSearchParams(); if (selectedCategory) params.set('categoryId', selectedCategory); params.set('limit', '20'); fetch(`/api/questions?${params}`).then(r => r.json()).then(data => setQuestions(data.questions || [])) }, [selectedCategory])
-  const current = questions[currentIdx]
+
+  // current — это вычисляемое значение (derived state): если есть selectedQuestion
+  // (пользователь кликнул «Практика» на конкретном вопросе), показываем его;
+  // иначе — вопрос по текущему индексу. Без эффекта, чтобы не было каскадных рендеров.
+  const current = selectedQuestion
+    ? questions.find(q => q.id === selectedQuestion) ?? questions[currentIdx]
+    : questions[currentIdx]
+
   const submitAnswer = async () => {
     if (!current || !userAnswer.trim()) return
     try { const res = await fetch('/api/ai-mentor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userAnswer, context: current.title, mode: 'interview' }) }); const data = await res.json(); setFeedback(data.response); const s = Math.min(Math.floor(userAnswer.length / 10) + current.answer.toLowerCase().split(' ').filter(w => userAnswer.toLowerCase().includes(w)).length * 3, 100); setScore(s); setTotalScore(t => t + s); setAnswered(a => a + 1) }
     catch { setFeedback('Ошибка при оценке.') }
   }
-  const nextQ = () => { setCurrentIdx(i => Math.min(i + 1, questions.length - 1)); setUserAnswer(''); setFeedback(''); setScore(null); setShowAnswer(false) }
+  const nextQ = () => {
+    // Переход к следующему вопросу сбрасывает selectedQuestion — иначе
+    // useEffect выше снова вернул бы нас к этому же вопросу.
+    setSelectedQuestion(null)
+    setCurrentIdx(i => Math.min(i + 1, questions.length - 1)); setUserAnswer(''); setFeedback(''); setScore(null); setShowAnswer(false)
+  }
+  const onCategoryChange = (val: string) => {
+    setSelectedCategory(val)
+    setStoreCategory(val || null)
+    setCurrentIdx(0); setAnswered(0); setTotalScore(0)
+    setSelectedQuestion(null)
+  }
   return (
     <div className="max-w-4xl space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div><h2 className="text-lg sm:text-xl font-bold">Собеседование</h2><p className="text-xs text-muted-foreground">Практика ответов</p></div>
         <div className="flex gap-2 items-center">{answered > 0 && <Badge variant="secondary" className="text-[10px] sm:text-xs"><Trophy className="h-3 w-3 mr-1" /> {Math.round(totalScore / answered)}/100</Badge>}
-          <select value={selectedCategory} onChange={(e) => { setSelectedCategory(e.target.value); setCurrentIdx(0); setAnswered(0); setTotalScore(0) }} className="text-xs border rounded-md px-2 py-1.5 bg-background"><option value="">Все</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <select value={selectedCategory} onChange={(e) => onCategoryChange(e.target.value)} className="text-xs border rounded-md px-2 py-1.5 bg-background"><option value="">Все</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
       </div>
       {current ? (
         <Card><CardHeader className="p-3 sm:p-6"><div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-2 flex-wrap"><Badge className={DIFFICULTY_COLORS[current.difficulty]} variant="secondary">{DIFFICULTY_LABELS[current.difficulty]}</Badge>{current.category && <Badge variant="outline" className="text-[10px] sm:text-xs">{current.category.name}</Badge>}<Badge variant="secondary" className="ml-auto text-[10px] sm:text-xs">В {currentIdx + 1}/{questions.length}</Badge></div>
@@ -547,14 +648,35 @@ function InterviewView({ categories }: { categories: Category[] }) {
 }
 
 /* ============ ИИ-НАСТАВНИК ============ */
-function MentorView() {
+function MentorView({ categories }: { categories: Category[] }) {
   const { messages, isLoading, clearMessages, sendMessage, retryLastMessage } = useChatStore()
+  // selectedCategory из store: если пользователь пришёл из категории, ИИ-наставник
+  // должен использовать специализированный системный промпт для этого раздела.
+  // Например, при переходе из категории «Docker» вопросы будут идти по Docker.
+  const { selectedCategory } = useAppStore()
+  const currentCategorySlug = useMemo(
+    () => categories.find(c => c.id === selectedCategory)?.slug ?? null,
+    [categories, selectedCategory]
+  )
   const [input, setInput] = useState('')
   const sending = isLoading
-  const send = async () => { if (!input.trim() || sending) return; const t = input.trim(); setInput(''); await sendMessage(t, defaultPrompt) }
+  const send = async () => {
+    if (!input.trim() || sending) return
+    const t = input.trim()
+    setInput('')
+    // Выбираем системный промпт: специализированный для раздела или дефолтный.
+    const systemPrompt = currentCategorySlug ? (chatPrompts[currentCategorySlug] || defaultPrompt) : defaultPrompt
+    await sendMessage(t, systemPrompt)
+  }
   return (
     <div className="max-w-3xl h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] flex flex-col">
-      <div className="mb-2 sm:mb-3"><h2 className="text-lg sm:text-xl font-bold flex items-center gap-2"><Brain className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" /> ИИ-наставник</h2><p className="text-xs text-muted-foreground">Задавайте вопросы по сисадмину и DevOps</p></div>
+      <div className="mb-2 sm:mb-3"><h2 className="text-lg sm:text-xl font-bold flex items-center gap-2"><Brain className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" /> ИИ-наставник</h2>
+        <p className="text-xs text-muted-foreground">
+          {currentCategorySlug
+            ? `Контекст: ${categories.find(c => c.slug === currentCategorySlug)?.name ?? 'раздел'}`
+            : 'Задавайте вопросы по сисадмину и DevOps'}
+        </p>
+      </div>
       <ScrollArea className="flex-1 border rounded-lg p-2 sm:p-3 mb-2 sm:mb-3 bg-card">
         <div className="space-y-3">
           {messages.length === 0 && <div className="text-center py-6 text-sm text-muted-foreground"><Brain className="h-8 w-8 mx-auto mb-2 opacity-20" /><p>Здравствуйте! Задайте вопрос о Linux, Docker, K8s, сетях...</p></div>}

@@ -11,7 +11,17 @@ interface AppState {
   sidebarOpen: boolean
   darkMode: boolean
 
+  // Просто меняет вид, сохраняя контекст (selectedQuestion, selectedCategory).
+  // Использовать для переходов, унаследующих контекст (например, «Изучить»/«Практика»).
   setView: (view: AppView) => void
+  // Меняет вид и сбрасывает контекст выбранного вопроса/категории.
+  // Использовать для переходов через боковое меню, где нужен «чистый» вид.
+  navigateToView: (view: AppView) => void
+  // Открывает конкретный вопрос в заданном режиме (learning/interview),
+  // сохраняя выбранную категорию как контекст.
+  openQuestion: (questionId: string, view: AppView) => void
+  // Открывает категорию в режиме просмотра списка вопросов.
+  openCategory: (categoryId: string) => void
   setSelectedCategory: (id: string | null) => void
   setSelectedQuestion: (id: string | null) => void
   setSearchQuery: (q: string) => void
@@ -29,7 +39,17 @@ export const useAppStore = create<AppState>((set) => ({
   sidebarOpen: true,
   darkMode: false,
 
-  setView: (view) => set({ currentView: view, selectedQuestion: null }),
+  // Сохраняет контекст — нужно для переходов «Изучить» / «Практика»,
+  // где пользователь ожидает открыть именно выбранный вопрос.
+  setView: (view) => set({ currentView: view }),
+  // Полный сброс контекста — для навигации через боковое меню,
+  // чтобы пользователь не оставался «внутри» прошлого вопроса.
+  navigateToView: (view) => set({ currentView: view, selectedQuestion: null }),
+  // Открыть конкретный вопрос в нужном режиме — сохраняет и вопрос, и вид.
+  openQuestion: (questionId, view) => set({ currentView: view, selectedQuestion: questionId }),
+  // Открыть категорию — устанавливает категорию и переключает на список вопросов,
+  // сбрасывая выбранный вопрос, чтобы не открывался устаревший.
+  openCategory: (categoryId) => set({ currentView: 'questions', selectedCategory: categoryId, selectedQuestion: null }),
   setSelectedCategory: (id) => set({ selectedCategory: id }),
   setSelectedQuestion: (id) => set({ selectedQuestion: id }),
   setSearchQuery: (q) => set({ searchQuery: q }),
