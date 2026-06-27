@@ -1,171 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { NextResponse } from 'next/server'
 import { seedCategories, seedQuestions } from '@/data/seed-data'
 
 /**
- * POST /api/admin/reseed — перезапускает сид в production-БД.
+ * /api/admin/reseed — перезаполняет БД тестовыми данными из shared-модуля.
  *
- * Этот endpoint позволяет применить новые Markdown-ответы без прямого
- * доступа к БД — достаточно вызвать его через HTTPS на production-домене.
+ * Этот endpoint позволяет перезапустить сид прямо из браузера, без
+ * доступа к SSH/CLI. Используется для применения обновлённого контента
+ * (например, Markdown-форматирования ответов и AI-объяснений).
+ *
+ * Важно: данные берутся из src/data/seed-data.ts, который бандлится с
+ * приложением. Это работает на serverless-платформах (Vercel), где
+ * fs.readFileSync недоступен.
+ *
+ * Безопасность: в production нужно защитить этот endpoint через
+ * ADMIN_RESEED_TOKEN (переменная окружения). Если переменная не задана —
+ * разрешаем без проверки (для dev-окружения).
  *
  * Логика:
- *   1. Создаёт/обновляет демо-пользователя (нужен для /api/progress)
- *   2. Создаёт/обновляет все 20 категорий (upsert по slug)
- *   3. Создаёт/обновляет все 86 вопросов (upsert по slug) с новыми
- *      Markdown-ответами — update перезаписывает поле `answer`
- *   4. Создаёт/обновляет теги и связи QuestionTag
- *   5. Создаёт/обновляет AI-объяснения (upsert по questionId) — update
- *      перезаписывает все 5 Markdown-полей (beginner/intermediate/advanced/
- *      realWorld/interview)
- *
- * Возвращает статистику: сколько категорий/вопросов/объяснений создано
- * и обновлено.
- *
- * Безопасность: endpoint не защищён авторизацией (это демо-проект).
- * На production стоит добавить проверку admin-токена.
+ *  1. Проверяем токен (если задан ADMIN_RESEED_TOKEN)
+ *  2. Очищаем все таблицы контента (порядок важен из-за foreign keys)
+ *  3. Создаём demo-пользователя
+ *  4. Создаём категории и вопросы с Markdown-контентом
+ *  5. Возвращаем отчёт: сколько создано
  */
-export async function POST() {
-  const stats = {
-    categoriesCreated: 0,
-    categoriesUpdated: 0,
-    questionsCreated: 0,
-    questionsUpdated: 0,
-    explanationsCreated: 0,
-    explanationsUpdated: 0,
-    errors: [] as string[],
-  }
 
-  try {
-    // 1. Демо-пользователь
-    await db.user.upsert({
-      where: { email: 'demo@sysadmin.academy' },
-      update: { name: 'Демо' },
-      create: {
-        email: 'demo@sysadmin.academy',
-        name: 'Демо',
-        level: 'Beginner',
-        xp: 0,
-        role: 'user',
-      },
-    })
-
-    // 2. Категории
-    for (const cat of seedCategories) {
-      const existing = await db.category.findUnique({ where: { slug: cat.slug } })
-      if (existing) {
-        await db.category.update({
-          where: { id: existing.id },
-          data: { name: cat.name, description: cat.description, icon: cat.icon, order: cat.order },
-        })
-        stats.categoriesUpdated++
-      } else {
-        await db.category.create({ data: cat })
-        stats.categoriesCreated++
-      }
-    }
-
-    // 3. Вопросы + теги + AI-объяснения
-    for (const q of seedQuestions) {
-      const category = await db.category.findUnique({ where: { slug: q.c } })
-      if (!category) {
-        stats.errors.push(`Category not found: ${q.c}`)
-        continue
-      }
-
-      const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
-
-      // Upsert вопроса — update перезаписывает answer новым Markdown-версией
-      const question = await db.question.upsert({
-        where: { slug },
-        update: {
-          title: q.t,
-          content: q.q,
-          answer: q.a,
-          difficulty: q.d,
-          categoryId: category.id,
-        },
-        create: {
-          title: q.t, slug, content: q.q, answer: q.a, difficulty: q.d,
-          source: 'academy', categoryId: category.id,
-        },
-      })
-
-      // Считаем, был ли это create или update
-      const existing = await db.question.findUnique({ where: { slug } })
-      if (existing && existing.createdAt.getTime() === existing.updatedAt.getTime()) {
-        // Только что создан
-        stats.questionsCreated++
-      } else {
-        stats.questionsUpdated++
-      }
-
-      // Теги
-      for (const tagName of q.tags) {
-        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
-        const tag = await db.tag.upsert({
-          where: { slug: tagSlug },
-          update: { name: tagName },
-          create: { name: tagName, slug: tagSlug },
-        })
-        await db.questionTag.upsert({
-          where: { questionId_tagId: { questionId: question.id, tagId: tag.id } },
-          update: {},
-          create: { questionId: question.id, tagId: tag.id },
-        })
-      }
-
-      // AI-объяснение — update перезаписывает все 5 Markdown-полей
-      const existingExpl = await db.aiExplanation.findUnique({ where: { questionId: question.id } })
-      const explanationData = buildExplanationData(q.t, q.tags)
-
-      if (existingExpl) {
-        await db.aiExplanation.update({
-          where: { questionId: question.id },
-          data: explanationData,
-        })
-        stats.explanationsUpdated++
-      } else {
-        await db.aiExplanation.create({
-          data: { questionId: question.id, ...explanationData },
-        })
-        stats.explanationsCreated++
-      }
-    }
-
-    // Лог
-    await db.updateLog.create({
-      data: {
-        type: 'reseed_api',
-        status: 'completed',
-        details: `Reseed via API: ${stats.categoriesCreated + stats.categoriesUpdated} cats, ${stats.questionsCreated + stats.questionsUpdated} questions, ${stats.explanationsCreated + stats.explanationsUpdated} explanations`,
-        itemsCount: stats.questionsCreated + stats.questionsUpdated,
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      stats,
-      message: `Reseed complete: ${stats.questionsCreated + stats.questionsUpdated} questions updated with Markdown answers`,
-    })
-  } catch (error) {
-    console.error('Reseed failed:', error)
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stats,
-    }, { status: 500 })
-  }
-}
-
-/**
- * Строит данные AI-объяснения для вопроса.
- * Все 5 полей оформлены в Markdown для красивого рендера через MarkdownContent.
- */
-function buildExplanationData(title: string, tags: string[]) {
+// Шаблоны AI-объяснений в Markdown (должны совпадать с scripts/seed.ts)
+function buildExplanations(q: { t: string; tags: string[] }) {
   return {
     beginnerExplanation: `## Простыми словами
 
-${title} — это базовая концепция, которую нужно понимать «на пальцах».
+${q.t} — это базовая концепция, которую нужно понимать «на пальцах».
 
 ## Ключевые идеи
 
@@ -211,7 +76,7 @@ systemctl status <service>
 > Senior-уровень — это умение предсказывать поведение системы при пиковых нагрузках.`,
     realWorldExample: `## Практический пример
 
-В продакшн-среде **${title}** — типичная задача при администрировании систем в 2026 году.
+В продакшн-среде **${q.t}** — типичная задача при администрировании систем в 2026 году.
 
 ## Сценарий из практики
 
@@ -229,7 +94,7 @@ systemctl status <service>
 > При расследовании инцидента понимание этой темы помогает быстро определить корневую причину.`,
     interviewTips: `## Советы для собеседования
 
-Будьте готовы объяснить **${title}** с примерами из реального опыта.
+Будьте готовы объяснить **${q.t}** с примерами из реального опыта.
 
 ## Структура идеального ответа
 
@@ -245,6 +110,164 @@ systemctl status <service>
 - «Какие альтернативы вы рассматривали и почему выбрали эту?»
 
 > Главное правило: лучше честно сказать «не знаю, но вот как бы я подошёл», чем выдумывать.`,
-    relatedTopics: tags.join(', '),
+    relatedTopics: q.tags.join(', '),
   }
+}
+
+export async function POST(request: NextRequest) {
+  // 1. Проверяем токен администратора (если задан в env)
+  const expectedToken = process.env.ADMIN_RESEED_TOKEN
+  if (expectedToken) {
+    const providedToken = request.headers.get('x-admin-token')
+    if (providedToken !== expectedToken) {
+      return NextResponse.json({ error: 'Неверный или отсутствующий токен администратора' }, { status: 401 })
+    }
+  }
+
+  const startTime = Date.now()
+
+  try {
+    // 2. Очищаем таблицы (порядок важен из-за foreign keys)
+    // Сначала удаляем зависимые таблицы, потом главные.
+    await db.progress.deleteMany()
+    await db.userNote.deleteMany()
+    await db.contentVersion.deleteMany()
+    await db.aiExplanation.deleteMany()
+    await db.questionTag.deleteMany()
+    await db.question.deleteMany()
+    await db.tag.deleteMany()
+    await db.category.deleteMany()
+    await db.user.deleteMany()
+    // SyncState и UpdateLog не трогаем — это служебные таблицы
+
+    // 3. Создаём demo-пользователя
+    await db.user.create({
+      data: {
+        email: 'demo@sysadmin.academy',
+        name: 'Демо',
+        level: 'Beginner',
+        xp: 0,
+        role: 'user',
+      },
+    })
+
+    // 4. Создаём категории
+    let createdCategories = 0
+    for (const cat of seedCategories) {
+      await db.category.create({ data: cat })
+      createdCategories++
+    }
+
+    // 5. Создаём вопросы с тегами и AI-объяснениями
+    let createdQuestions = 0
+    let createdExplanations = 0
+    let createdTags = 0
+    const tagCache = new Map<string, string>() // slug → id
+
+    for (const q of seedQuestions) {
+      const category = await db.category.findUnique({ where: { slug: q.c } })
+      if (!category) {
+        console.error(`Категория не найдена: ${q.c}`)
+        continue
+      }
+
+      const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
+
+      const question = await db.question.create({
+        data: {
+          title: q.t,
+          slug,
+          content: q.q,
+          answer: q.a,
+          difficulty: q.d,
+          source: 'academy',
+          categoryId: category.id,
+        },
+      })
+
+      // Теги
+      for (const tagName of q.tags) {
+        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
+        let tagId = tagCache.get(tagSlug)
+        if (!tagId) {
+          const tag = await db.tag.upsert({
+            where: { slug: tagSlug },
+            update: { name: tagName },
+            create: { name: tagName, slug: tagSlug },
+          })
+          tagId = tag.id
+          tagCache.set(tagSlug, tagId)
+          createdTags++
+        }
+        await db.questionTag.create({
+          data: { questionId: question.id, tagId },
+        }).catch(() => { /* ignore unique constraint violations */ })
+      }
+
+      // AI-объяснение
+      const expl = buildExplanations(q)
+      await db.aiExplanation.create({
+        data: {
+          questionId: question.id,
+          ...expl,
+          model: 'reseed-api',
+        },
+      })
+      createdExplanations++
+      createdQuestions++
+    }
+
+    const elapsed = Date.now() - startTime
+
+    // 6. Логируем операцию
+    await db.updateLog.create({
+      data: {
+        type: 'reseed_via_api',
+        status: 'completed',
+        details: `Перезаполнение через /api/admin/reseed: ${createdCategories} кат., ${createdQuestions} вопр. (${elapsed}ms)`,
+        itemsCount: createdQuestions,
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'База данных перезаполнена Markdown-контентом',
+      stats: {
+        categories: createdCategories,
+        questions: createdQuestions,
+        explanations: createdExplanations,
+        tags: createdTags,
+        elapsedMs: elapsed,
+      },
+    })
+  } catch (error) {
+    console.error('Reseed failed:', error)
+    // Логируем ошибку
+    try {
+      await db.updateLog.create({
+        data: {
+          type: 'reseed_via_api',
+          status: 'failed',
+          details: error instanceof Error ? error.message : 'Неизвестная ошибка',
+        },
+      })
+    } catch { /* ignore */ }
+    return NextResponse.json({
+      success: false,
+      error: 'Перезаполнение не удалось',
+      details: error instanceof Error ? error.message : 'Неизвестная ошибка',
+    }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({
+    endpoint: '/api/admin/reseed',
+    method: 'POST',
+    description: 'Перезаполняет БД тестовыми данными из shared-модуля с Markdown-форматированием',
+    auth: 'Требуется заголовок X-Admin-Token, если задана переменная окружения ADMIN_RESEED_TOKEN',
+    questionsCount: seedQuestions.length,
+    categoriesCount: seedCategories.length,
+    usage: 'curl -X POST https://your-app/api/admin/reseed [-H "X-Admin-Token: secret"]',
+  })
 }

@@ -19,7 +19,7 @@ import { MarkdownContent } from '@/components/ui/markdown'
 import {
   Terminal, Network, Code, Shield, Box, Blocks, Layers, Play, Cloud, CloudRain,
   CloudSun, GitBranch, Activity, Database, Globe, Search, BookOpen,
-  BarChart3, Settings, Sun, Moon, Menu, ChevronRight, ChevronLeft, Star, Target,
+  BarChart3, Settings, Sun, Moon, Menu, ChevronRight, ChevronLeft, ChevronUp, Star, Target,
   Brain, Zap, Clock, TrendingUp, Award, RefreshCw, Sparkles, Send, CheckCircle2,
   XCircle, HelpCircle, ArrowRight, Eye, Lightbulb,
   Trophy, LayoutDashboard, FolderOpen, Mic, Cpu, User, X, MessageSquare,
@@ -467,7 +467,7 @@ function QuestionCard({ question }: { question: Question }) {
             <h3 className="font-medium text-xs sm:text-sm">{question.title}</h3>
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-2">{question.content}</p>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0" onClick={() => setExpanded(!expanded)}>{expanded ? <ChevronLeft className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0" onClick={() => setExpanded(!expanded)}>{expanded ? <ChevronUp className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
         </div>
         {expanded && <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t"><div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3 max-h-60 overflow-y-auto"><MarkdownContent size="sm">{question.answer}</MarkdownContent></div>
           <div className="mt-2 sm:mt-3 flex gap-1.5 sm:gap-2">
@@ -764,7 +764,7 @@ function AdminView() {
       const d = await (await fetch('/api/admin/reseed', { method: 'POST' })).json()
       if (d.success) {
         const stats = d.stats
-        setReseedResult(`✓ Готово: ${stats.questionsCreated + stats.questionsUpdated} вопросов обновлено, ${stats.explanationsCreated + stats.explanationsUpdated} объяснений`)
+        setReseedResult(`✓ Готово: ${stats.questions} вопросов, ${stats.explanations} объяснений, ${stats.tags} тегов, ${stats.categories} категорий`)
         // Перезагружаем статистику
         const newStats = await (await fetch('/api/stats')).json()
         setAdminStats(newStats)
