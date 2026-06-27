@@ -82,3 +82,7 @@ Caddyfile
 
 # Bun lock (optional)
 bun.lock
+
+# Local SQLite dev DB (for offline testing only — production uses PostgreSQL)
+prisma/dev.db
+prisma/prisma/
