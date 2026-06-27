@@ -15,6 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { MarkdownContent } from '@/components/ui/markdown'
 import {
   Terminal, Network, Code, Shield, Box, Blocks, Layers, Play, Cloud, CloudRain,
   CloudSun, GitBranch, Activity, Database, Globe, Search, BookOpen,
@@ -286,8 +287,12 @@ function AgentChatPopup({ open, onClose, minimized, onMinimize, onRestore, expan
                 <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white'}`}>
                   {msg.role === 'user' ? <User className="h-3.5 w-3.5" /> : <Brain className="h-3.5 w-3.5" />}
                 </div>
-                <div className={`flex-1 min-w-0 rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                  {msg.content}
+                <div className={`flex-1 min-w-0 rounded-lg px-3 py-2 text-sm break-words leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                  {msg.role === 'user'
+                    ? <span className="whitespace-pre-wrap">{msg.content}</span>
+                    // Сообщения ассистента рендерим как Markdown — с разделением на блоки,
+                    // подсветкой кода, заголовками и списками для удобного чтения.
+                    : <MarkdownContent size="sm" className="[&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1">{msg.content}</MarkdownContent>}
                 </div>
               </div>
             ))}
@@ -464,7 +469,7 @@ function QuestionCard({ question }: { question: Question }) {
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0" onClick={() => setExpanded(!expanded)}>{expanded ? <ChevronLeft className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
         </div>
-        {expanded && <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t"><div className="whitespace-pre-wrap text-xs sm:text-sm bg-muted/50 rounded-lg p-3 max-h-60 overflow-y-auto">{question.answer}</div>
+        {expanded && <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t"><div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3 max-h-60 overflow-y-auto"><MarkdownContent size="sm">{question.answer}</MarkdownContent></div>
           <div className="mt-2 sm:mt-3 flex gap-1.5 sm:gap-2">
             <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openQuestion(question.id, 'learning')}><BookOpen className="h-3 w-3 mr-1" /> Изучить</Button>
             <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openQuestion(question.id, 'interview')}><Mic className="h-3 w-3 mr-1" /> Практика</Button>
@@ -567,14 +572,14 @@ function LearningView({ categories }: { categories: Category[] }) {
           </CardHeader>
           <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0 space-y-3 sm:space-y-4">
             {!showAnswer ? <Button size="sm" onClick={() => setShowAnswer(true)} className="gap-1"><Lightbulb className="h-3 w-3 sm:h-4 sm:w-4" /> Показать ответ</Button> : (
-              <><div className="whitespace-pre-wrap text-xs sm:text-sm bg-muted/50 rounded-lg p-3 sm:p-4 border max-h-64 overflow-y-auto">{current.answer}</div>
+              <><div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3 sm:p-4 border max-h-72 overflow-y-auto"><MarkdownContent size="sm">{current.answer}</MarkdownContent></div>
                 {current.aiExplanation && (<div><h4 className="font-semibold text-xs sm:text-sm mb-1.5 sm:mb-2 flex items-center gap-1"><Sparkles className="h-3.5 w-3.5 text-purple-500" /> ИИ-объяснение</h4>
                   <Tabs value={explanationTab} onValueChange={setExplanationTab}><TabsList className="w-full justify-start flex-wrap h-auto gap-0.5"><TabsTrigger value="beginner" className="text-[10px] sm:text-xs">Для новичков</TabsTrigger><TabsTrigger value="intermediate" className="text-[10px] sm:text-xs">Средний</TabsTrigger><TabsTrigger value="advanced" className="text-[10px] sm:text-xs">Продвинутый</TabsTrigger><TabsTrigger value="practical" className="text-[10px] sm:text-xs">Практика</TabsTrigger><TabsTrigger value="interview" className="text-[10px] sm:text-xs">Собеседование</TabsTrigger></TabsList>
-                    <TabsContent value="beginner" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-emerald-50 dark:bg-emerald-950/20 rounded-lg p-2.5 sm:p-3 border border-emerald-200 dark:border-emerald-800">{current.aiExplanation.beginnerExplanation}</div></TabsContent>
-                    <TabsContent value="intermediate" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-amber-50 dark:bg-amber-950/20 rounded-lg p-2.5 sm:p-3 border border-amber-200 dark:border-amber-800">{current.aiExplanation.intermediateExplanation}</div></TabsContent>
-                    <TabsContent value="advanced" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-rose-50 dark:bg-rose-950/20 rounded-lg p-2.5 sm:p-3 border border-rose-200 dark:border-rose-800">{current.aiExplanation.advancedExplanation}</div></TabsContent>
-                    <TabsContent value="practical" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-teal-50 dark:bg-teal-950/20 rounded-lg p-2.5 sm:p-3 border border-teal-200 dark:border-teal-800">{current.aiExplanation.realWorldExample}</div></TabsContent>
-                    <TabsContent value="interview" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-purple-50 dark:bg-purple-950/20 rounded-lg p-2.5 sm:p-3 border border-purple-200 dark:border-purple-800">{current.aiExplanation.interviewTips}</div></TabsContent>
+                    <TabsContent value="beginner" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-emerald-50 dark:bg-emerald-950/20 rounded-lg p-2.5 sm:p-3 border border-emerald-200 dark:border-emerald-800"><MarkdownContent size="sm">{current.aiExplanation.beginnerExplanation ?? ''}</MarkdownContent></div></TabsContent>
+                    <TabsContent value="intermediate" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-amber-50 dark:bg-amber-950/20 rounded-lg p-2.5 sm:p-3 border border-amber-200 dark:border-amber-800"><MarkdownContent size="sm">{current.aiExplanation.intermediateExplanation ?? ''}</MarkdownContent></div></TabsContent>
+                    <TabsContent value="advanced" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-rose-50 dark:bg-rose-950/20 rounded-lg p-2.5 sm:p-3 border border-rose-200 dark:border-rose-800"><MarkdownContent size="sm">{current.aiExplanation.advancedExplanation ?? ''}</MarkdownContent></div></TabsContent>
+                    <TabsContent value="practical" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-teal-50 dark:bg-teal-950/20 rounded-lg p-2.5 sm:p-3 border border-teal-200 dark:border-teal-800"><MarkdownContent size="sm">{current.aiExplanation.realWorldExample ?? ''}</MarkdownContent></div></TabsContent>
+                    <TabsContent value="interview" className="mt-1.5 sm:mt-2"><div className="text-xs sm:text-sm bg-purple-50 dark:bg-purple-950/20 rounded-lg p-2.5 sm:p-3 border border-purple-200 dark:border-purple-800"><MarkdownContent size="sm">{current.aiExplanation.interviewTips ?? ''}</MarkdownContent></div></TabsContent>
                   </Tabs></div>)}
                 <Separator /><div><p className="text-xs text-muted-foreground mb-1.5">Насколько хорошо поняли?</p>
                   <div className="flex gap-1.5 sm:gap-2 flex-wrap"><Button size="sm" variant="outline" className="text-xs gap-1 h-7" onClick={() => markProgress('needs_review')}><XCircle className="h-3 w-3 text-rose-500" /> Повторить</Button><Button size="sm" variant="outline" className="text-xs gap-1 h-7" onClick={() => markProgress('learning')}><Clock className="h-3 w-3 text-amber-500" /> Изучаю</Button><Button size="sm" variant="outline" className="text-xs gap-1 h-7" onClick={() => markProgress('mastered')}><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Освоено</Button></div></div></>
@@ -637,8 +642,8 @@ function InterviewView({ categories }: { categories: Category[] }) {
           <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0 space-y-3">
             <Textarea placeholder="Напишите ответ..." value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} rows={4} className="resize-y text-sm" />
             <div className="flex gap-1.5 sm:gap-2"><Button size="sm" onClick={submitAnswer} disabled={!userAnswer.trim() || !!feedback} className="gap-1 text-xs"><Send className="h-3 w-3" /> Отправить</Button><Button variant="outline" size="sm" onClick={() => setShowAnswer(!showAnswer)} className="text-xs"><Eye className="h-3 w-3 mr-1" /> {showAnswer ? 'Скрыть' : 'Эталон'}</Button></div>
-            {score !== null && <div className="space-y-2"><div className="flex items-center gap-2"><span className="font-semibold text-xs sm:text-sm">Оценка:</span><Badge className={score >= 70 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : score >= 40 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'}>{score}/100</Badge></div><div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3 whitespace-pre-wrap">{feedback}</div></div>}
-            {showAnswer && <div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3 whitespace-pre-wrap border"><p className="font-semibold mb-1">Эталон:</p>{current.answer}</div>}
+            {score !== null && <div className="space-y-2"><div className="flex items-center gap-2"><span className="font-semibold text-xs sm:text-sm">Оценка:</span><Badge className={score >= 70 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : score >= 40 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'}>{score}/100</Badge></div><div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3"><MarkdownContent size="sm">{feedback}</MarkdownContent></div></div>}
+            {showAnswer && <div className="text-xs sm:text-sm bg-muted/50 rounded-lg p-3 border"><p className="font-semibold mb-1">Эталон:</p><MarkdownContent size="sm">{current.answer}</MarkdownContent></div>}
           </CardContent>
         </Card>
       ) : <div className="text-center py-10 text-muted-foreground"><Mic className="h-10 w-10 mx-auto mb-2 opacity-20" /><p className="text-sm">Выберите категорию</p></div>}
@@ -685,7 +690,13 @@ function MentorView({ categories }: { categories: Category[] }) {
               <div className={`shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white ${msg.role === 'user' ? 'bg-primary' : 'bg-gradient-to-br from-emerald-500 to-teal-600'}`}>
                 {msg.role === 'user' ? <User className="h-3 w-3" /> : <Brain className="h-3 w-3" />}
               </div>
-              <div className={`flex-1 min-w-0 rounded-lg px-3 py-2 text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>{msg.content}</div>
+              <div className={`flex-1 min-w-0 rounded-lg px-3 py-2 text-xs sm:text-sm break-words leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                {msg.role === 'user'
+                  ? <span className="whitespace-pre-wrap">{msg.content}</span>
+                  // Сообщения ассистента в ИИ-наставнике рендерим как Markdown
+                  // для красивого разделения на блоки (команды, списки, заголовки).
+                  : <MarkdownContent size="sm">{msg.content}</MarkdownContent>}
+              </div>
             </div>
           ))}
           {isLoading && messages[messages.length - 1]?.role !== 'assistant' && <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse"><Brain className="h-3 w-3" /> Думаю...</div>}
