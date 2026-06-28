@@ -199,8 +199,10 @@ export default function Home() {
 
       {/* Agent Chat Popup — передаём slug текущей категории, чтобы ИИ-наставник
           в чате использовал подходящий системный промпт (например, для docker,
-          kubernetes и т.д.), отвечая строго в контексте изучаемого раздела. */}
-      <AgentChatPopup open={chatOpen} onClose={() => { setChatOpen(false); setChatMinimized(false); setChatExpanded(false) }}
+          kubernetes и т.д.), отвечая строго в контексте изучаемого раздела.
+          При закрытии чата (крестик) — сообщения очищаются, чтобы следующий
+          разговор начинался «с чистого листа», а не продолжал старый контекст. */}
+      <AgentChatPopup open={chatOpen} onClose={() => { setChatOpen(false); setChatMinimized(false); setChatExpanded(false); useChatStore.getState().clearMessages() }}
         minimized={chatMinimized} onMinimize={() => setChatMinimized(true)} onRestore={() => setChatMinimized(false)}
         expanded={chatExpanded} onExpand={() => setChatExpanded(p => !p)} currentCategorySlug={currentCategorySlug} />
     </div>
@@ -262,6 +264,9 @@ function AgentChatPopup({ open, onClose, minimized, onMinimize, onRestore, expan
           <div className="flex items-center gap-0.5 shrink-0">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onExpand}>{expanded ? <Shrink className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMinimize}><Minimize2 className="h-3.5 w-3.5" /></Button>
+            {/* Кнопка очистки чата — удаляет все сообщения, начинает разговор заново.
+                Показывается только если есть сообщения. */}
+            {messages.length > 0 && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearMessages} title="Очистить чат"><RefreshCw className="h-3.5 w-3.5" /></Button>}
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}><X className="h-3.5 w-3.5" /></Button>
           </div>
         </div>
@@ -709,6 +714,10 @@ function MentorView({ categories }: { categories: Category[] }) {
       <div className="flex gap-2">
         <Input placeholder="Спросите о Linux, Docker, K8s..." value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) send() }} disabled={sending} className="text-sm" />
         <Button onClick={send} disabled={sending || !input.trim()} size="icon" className="shrink-0"><Send className="h-4 w-4" /></Button>
+        {/* Кнопка очистки чата — удаляет все сообщения и начинает разговор заново.
+            Полезно, когда контекст стал слишком длинным или пользователь хочет
+            сменить тему без наследования предыдущих вопросов. */}
+        {messages.length > 0 && <Button onClick={clearMessages} variant="outline" size="icon" className="shrink-0" title="Очистить чат"><RefreshCw className="h-4 w-4" /></Button>}
       </div>
     </div>
   )
