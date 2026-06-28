@@ -5,9 +5,19 @@ import { autoSeedIfNeeded } from '@/lib/auto-seed'
 export async function GET() {
   try {
     // Автосидинг: если БД пустая, наполняем её Markdown-контентом.
-    // Это срабатывает при первом обращении к сайту после деплоя.
-    // Идемпотентно — если данные есть, ничего не делает.
-    await autoSeedIfNeeded()
+    // ВАЖНО: не await-им результат! Запускаем в фоне, чтобы не блокировать
+    // ответ /api/stats. Иначе на Vercel serverless запрос к /api/stats
+    // ждёт завершения сидинга (10-30 сек) и падает по таймауту 10 сек,
+    // из-за чего фронтенд показывает «Не удалось загрузить данные».
+    //
+    // Пользователь увидит пустую страницу при первом заходе, но через
+    // 10-30 секунд (после завершения фонового сидинга) обновит страницу —
+    // и вопросы появятся.
+    //
+    // Идемпотентно — если данные уже есть, ничего не делает.
+    autoSeedIfNeeded().catch(err => {
+      console.error('[stats] Background auto-seed failed:', err)
+    })
 
     const [totalQuestions, totalCategories, totalTags, totalExplanations, difficultyBreakdown] = await Promise.all([
       db.question.count({ where: { isPublished: true } }),

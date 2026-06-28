@@ -45,87 +45,141 @@ async function doSeed(): Promise<boolean> {
   console.log('[autoSeed] БД пуста — запускаю автоматический сид...')
 
   try {
-    await db.$transaction(async (tx) => {
-      // На всякий случай — если есть partial-данные, очищаем
-      await tx.progress.deleteMany()
-      await tx.userNote.deleteMany()
-      await tx.contentVersion.deleteMany()
-      await tx.aiExplanation.deleteMany()
-      await tx.questionTag.deleteMany()
-      await tx.question.deleteMany()
-      await tx.tag.deleteMany()
-      await tx.category.deleteMany()
-      await tx.user.deleteMany()
+    // Стратегия: используем createMany для bulk-insert (1 запрос вместо 153).
+    // Категории и вопросы создаются без связей, потом связи добавляются.
+    // Это радикально быстрее — ~10 запросов вместо ~765.
+    //
+    // Порядок:
+    // 1. Очистка (если есть partial данные)
+    // 2. Demo user (createMany)
+    // 3. Categories (createMany) — 1 запрос
+    // 4. Tags (createMany, уникальные) — 1 запрос
+    // 5. Questions (createMany) — 1 запрос
+    // 6. AiExplanations (createMany) — 1 запрос
+    // 7. QuestionTags (createMany) — 1 запрос
 
-      // Demo-пользователь
-      await tx.user.create({
-        data: {
-          email: 'demo@sysadmin.academy',
-          name: 'Демо',
-          level: 'Beginner',
-          xp: 0,
-          role: 'user',
-        },
-      })
+    // Шаг 1: Очистка
+    await db.progress.deleteMany()
+    await db.userNote.deleteMany()
+    await db.contentVersion.deleteMany()
+    await db.aiExplanation.deleteMany()
+    await db.questionTag.deleteMany()
+    await db.question.deleteMany()
+    await db.tag.deleteMany()
+    await db.category.deleteMany()
+    await db.user.deleteMany()
 
-      // Категории
-      const categoryIds = new Map<string, string>()
-      for (const cat of seedCategories) {
-        const created = await tx.category.create({ data: cat })
-        categoryIds.set(cat.slug, created.id)
-      }
+    console.log('[autoSeed] Очистка завершена')
 
-      // Вопросы + теги + объяснения
-      const tagCache = new Map<string, string>()
-      for (const q of seedQuestions) {
-        const categoryId = categoryIds.get(q.c)
-        if (!categoryId) continue
+    // Шаг 2: Demo user
+    await db.user.create({
+      data: {
+        email: 'demo@sysadmin.academy',
+        name: 'Демо',
+        level: 'Beginner',
+        xp: 0,
+        role: 'user',
+      },
+    })
 
-        const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
+    // Шаг 3: Categories — bulk insert
+    await db.category.createMany({
+      data: seedCategories,
+    })
+    console.log(`[autoSeed] Создано категорий: ${seedCategories.length}`)
 
-        const question = await tx.question.create({
-          data: {
-            title: q.t,
-            slug,
-            content: q.q,
-            answer: q.a,
-            difficulty: q.d,
-            source: 'academy',
-            categoryId,
-          },
-        })
+    // Получаем маппинг slug → id (нужно для вопросов)
+    const categories = await db.category.findMany({ select: { id: true, slug: true } })
+    const categoryIdBySlug = new Map(categories.map(c => [c.slug, c.id]))
 
-        for (const tagName of q.tags) {
-          const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
-          let tagId = tagCache.get(tagSlug)
-          if (!tagId) {
-            const tag = await tx.tag.upsert({
-              where: { slug: tagSlug },
-              update: { name: tagName },
-              create: { name: tagName, slug: tagSlug },
-            })
-            tagId = tag.id
-            tagCache.set(tagSlug, tagId)
-          }
-          try {
-            await tx.questionTag.create({
-              data: { questionId: question.id, tagId },
-            })
-          } catch {
-            // ignore unique constraint
-          }
+    // Шаг 4: Tags — собираем уникальные теги из всех вопросов
+    const tagSet = new Map<string, string>() // slug → name
+    for (const q of seedQuestions) {
+      for (const tagName of q.tags) {
+        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
+        if (!tagSet.has(tagSlug)) {
+          tagSet.set(tagSlug, tagName)
         }
-
-        const expl = buildExplanations(q)
-        await tx.aiExplanation.create({
-          data: {
-            questionId: question.id,
-            ...expl,
-            model: 'auto-seed',
-          },
-        })
       }
-    }, { timeout: 50_000 })
+    }
+    const tagsData = Array.from(tagSet.entries()).map(([slug, name]) => ({ name, slug }))
+    await db.tag.createMany({ data: tagsData })
+    console.log(`[autoSeed] Создано тегов: ${tagsData.length}`)
+
+    // Получаем маппинг tag slug → id
+    const tags = await db.tag.findMany({ select: { id: true, slug: true } })
+    const tagIdBySlug = new Map(tags.map(t => [t.slug, t.id]))
+
+    // Шаг 5: Questions — bulk insert
+    // Предварительно вычисляем slug для каждого вопроса
+    const questionsData = seedQuestions
+      .map((q, idx) => {
+        const categoryId = categoryIdBySlug.get(q.c)
+        if (!categoryId) return null
+        const slug = q.t.toLowerCase().replace(/[^a-zа-яё0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 100)
+        // Добавляем суффикс с индексом для гарантии уникальности slug
+        const uniqueSlug = `${slug}-${idx}`
+        return {
+          title: q.t,
+          slug: uniqueSlug,
+          content: q.q,
+          answer: q.a,
+          difficulty: q.d,
+          source: 'academy',
+          categoryId,
+          order: idx,
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+
+    await db.question.createMany({ data: questionsData })
+    console.log(`[autoSeed] Создано вопросов: ${questionsData.length}`)
+
+    // Получаем маппинг question slug → id
+    const createdQuestions = await db.question.findMany({
+      select: { id: true, slug: true, order: true },
+    })
+    // Создаём маппинг order → questionId (надёжнее, чем по slug)
+    const questionIdByOrder = new Map(
+      createdQuestions.map(q => [q.order, q.id])
+    )
+
+    // Шаг 6: AiExplanations — bulk insert
+    const explanationsData = seedQuestions
+      .map((q, idx) => {
+        const questionId = questionIdByOrder.get(idx)
+        if (!questionId) return null
+        const expl = buildExplanations(q)
+        return {
+          questionId,
+          ...expl,
+          model: 'auto-seed',
+        }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+
+    await db.aiExplanation.createMany({ data: explanationsData })
+    console.log(`[autoSeed] Создано объяснений: ${explanationsData.length}`)
+
+    // Шаг 7: QuestionTags — bulk insert
+    const questionTagsData: { questionId: string; tagId: string }[] = []
+    const seenPairs = new Set<string>()
+    seedQuestions.forEach((q, idx) => {
+      const questionId = questionIdByOrder.get(idx)
+      if (!questionId) return
+      for (const tagName of q.tags) {
+        const tagSlug = tagName.toLowerCase().replace(/\s+/g, '-')
+        const tagId = tagIdBySlug.get(tagSlug)
+        if (!tagId) continue
+        const pairKey = `${questionId}-${tagId}`
+        if (seenPairs.has(pairKey)) continue
+        seenPairs.add(pairKey)
+        questionTagsData.push({ questionId, tagId })
+      }
+    })
+
+    await db.questionTag.createMany({ data: questionTagsData })
+    console.log(`[autoSeed] Создано связей вопрос-тег: ${questionTagsData.length}`)
 
     console.log('[autoSeed] Сидинг завершён успешно')
     return true
