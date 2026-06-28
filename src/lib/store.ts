@@ -43,8 +43,21 @@ export const useAppStore = create<AppState>((set) => ({
   // где пользователь ожидает открыть именно выбранный вопрос.
   setView: (view) => set({ currentView: view }),
   // Полный сброс контекста — для навигации через боковое меню,
-  // чтобы пользователь не оставался «внутри» прошлого вопроса.
-  navigateToView: (view) => set({ currentView: view, selectedQuestion: null }),
+  // чтобы пользователь не оставался «внутри» прошлого вопроса/категории.
+  // ВАЖНО: selectedCategory сбрасывается для всех разделов, кроме 'questions'
+  // (там пользователь находится внутри конкретной категории).
+  // Это исправляет баг, когда на главной чат использовал промпт от
+  // ранее выбранной категории (например, Terraform).
+  navigateToView: (view) => set((s) => ({
+    currentView: view,
+    selectedQuestion: null,
+    // Сбрасываем категорию, если переходим НЕ в questions/learning/interview
+    // (в learning/interview категория может наследоваться для контекста,
+    // но если пользователь явно нажал пункт меню — он хочет «чистый» раздел)
+    selectedCategory: ['questions', 'learning', 'interview'].includes(view)
+      ? s.selectedCategory
+      : null,
+  })),
   // Открыть конкретный вопрос в нужном режиме — сохраняет и вопрос, и вид.
   openQuestion: (questionId, view) => set({ currentView: view, selectedQuestion: questionId }),
   // Открыть категорию — устанавливает категорию и переключает на список вопросов,
