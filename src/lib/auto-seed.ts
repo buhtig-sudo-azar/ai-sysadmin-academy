@@ -41,6 +41,44 @@ export async function autoSeedIfNeeded(): Promise<boolean> {
   return seedingPromise
 }
 
+/**
+ * reseedDatabase — принудительное перезаполнение БД.
+ * Используется /api/admin/reseed (кнопка в админке).
+ * В отличие от autoSeedIfNeeded, ВСЕГДА очищает и пересоздаёт данные,
+ * даже если они уже есть.
+ *
+ * Использует bulk insert (createMany) — ~10 запросов вместо ~765,
+ * что критически важно для serverless (Vercel таймаут 10 сек).
+ *
+ * Возвращает статистику: сколько записей создано.
+ */
+export async function reseedDatabase(): Promise<{
+  categories: number
+  questions: number
+  explanations: number
+  tags: number
+}> {
+  // Если идёт auto-seed — ждём его завершения
+  if (seedingPromise) {
+    await seedingPromise
+  }
+
+  const result = await doSeed()
+  if (!result) {
+    throw new Error('Reseed failed — check server logs')
+  }
+
+  // Возвращаем статистику
+  const [categories, questions, explanations, tags] = await Promise.all([
+    db.category.count(),
+    db.question.count(),
+    db.aiExplanation.count(),
+    db.tag.count(),
+  ])
+
+  return { categories, questions, explanations, tags }
+}
+
 async function doSeed(): Promise<boolean> {
   console.log('[autoSeed] БД пуста — запускаю автоматический сид...')
 
