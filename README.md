@@ -81,32 +81,6 @@ npm run dev
 2. Установите переменные окружения (если нужны)
 3. Деплой произойдёт автоматически
 
-## 🔬 LLM Security Lab
-
-Отдельный проект в разделе веб-безопасности — исследование Prompt Injection атак на LLM-приложения.
-
-**Доступ**: `/llm-security` (ссылка в header приложения)
-
-### Возможности
-- **Уязвимый режим** — все защитные правила отключены, можно эксплуатировать уязвимости
-- **Защищённый режим** — 5 security rules (input filter, prompt isolation, least privilege, human-in-the-loop, output validation)
-- **7 готовых payloads** для тестирования атак
-- **6 LLM-функций** с разными уровнями привилегий (read/write/delete)
-- **Audit Log** — логирование всех вызовов функций
-
-### Демонстрируемые атаки
-1. **Прямая инъекция** (Jailbreak) — «Ignore previous instructions»
-2. **Утечка системного промпта** — System Prompt Leakage
-3. **Косвенная инъекция** — скрытый payload в HTML-комментарии
-4. **Эксплуатация API** — delete_account, change_email без подтверждения
-5. **Утечка данных** — раскрытие API-ключей
-
-### Документация
-- [`docs/llm-security/PENTEST_REPORT.md`](docs/llm-security/PENTEST_REPORT.md) — отчёт о тестировании на проникновение
-- [`docs/llm-security/SECURE_DEV_GUIDE.md`](docs/llm-security/SECURE_DEV_GUIDE.md) — руководство разработчика по безопасности LLM
-
-Основано на [PortSwigger Web Security Academy](https://portswigger.net/web-security/llm-attacks) и OWASP Top 10 for LLM.
-
 ## 📄 Лицензия
 
 MIT

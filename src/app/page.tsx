@@ -23,7 +23,7 @@ import {
   Brain, Zap, Clock, TrendingUp, Award, RefreshCw, Sparkles, Send, CheckCircle2,
   XCircle, HelpCircle, ArrowRight, Eye, Lightbulb,
   Trophy, LayoutDashboard, FolderOpen, Mic, Cpu, User, X, MessageSquare,
-  Minimize2, Maximize2, Shrink, ArrowUp, HardDrive, Server, Lock, Wrench, ShieldAlert
+  Minimize2, Maximize2, Shrink, ArrowUp, HardDrive, Server, Lock, Wrench
 } from 'lucide-react'
 
 interface Category { id: string; name: string; slug: string; description: string; icon: string; order: number; _count?: { questions: number } }
@@ -182,10 +182,6 @@ export default function Home() {
         <header className="h-12 sm:h-14 border-b bg-card flex items-center px-3 sm:px-4 gap-2 sm:gap-3 sticky top-0 z-40">
           <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" onClick={() => setMobileMenuOpen(true)}><Menu className="h-4 w-4" /></Button>
           <div className="flex-1 min-w-0"><h2 className="font-semibold text-sm sm:text-lg truncate">{VIEW_TITLES[currentView]}</h2></div>
-          {/* Ссылка на LLM Security Lab — отдельный проект в портфолио веб-безопасности */}
-          <a href="/llm-security" className="text-xs text-muted-foreground hover:text-foreground hover:bg-muted px-2 py-1 rounded-md transition-colors flex items-center gap-1" title="LLM Security Lab">
-            <ShieldAlert className="h-3.5 w-3.5" /> <span className="hidden sm:inline">LLM Security</span>
-          </a>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setChatOpen(!chatOpen)}><MessageSquare className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={toggleDarkMode}>{darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</Button>
         </header>
